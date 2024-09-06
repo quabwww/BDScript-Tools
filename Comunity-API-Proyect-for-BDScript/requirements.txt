@@ -1,0 +1,7 @@
+asyncio
+fastapi
+pydantic
+uvicorn
+requests
+easy-pil
+httpx
