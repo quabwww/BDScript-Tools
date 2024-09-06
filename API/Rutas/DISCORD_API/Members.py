@@ -61,12 +61,19 @@ def fetch_members_with_role(guild_id: str, role_id: str, token: str, page: int, 
     end = start + limit
     paginated_members = role_members[start:end]
 
+    # Enumerar los miembros con su número global
+    primer_miembro = start + 1
+    enumerated_members = [
+        f"{primer_miembro + idx}.- {member['id']}"
+        for idx, member in enumerate(paginated_members)
+    ]
+
     return {
         "page": page,
         "limit": limit,
         "total_members": total_count,
         "total_pages": total_pages,
-        "member_ids": [member['id'] for member in paginated_members],
+        "member_ids": enumerated_members,  # Miembros enumerados
         "assigned_at_dates": {member['id']: member['assigned_at'] for member in paginated_members}
     }
 
@@ -77,7 +84,6 @@ def get_members_by_role(guild_id: str, role_id: str, page: int, limit: int, toke
     
     response = fetch_members_with_role(guild_id, role_id, token, page, limit)
     return response
-
 
 app.include_router(router)
 
