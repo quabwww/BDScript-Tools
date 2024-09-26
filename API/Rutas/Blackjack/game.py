@@ -67,22 +67,54 @@ def nueva_partida():
         "finalizada": False
     }
 
-    # Verificar si el jugador puede hacer un split
-    se_puede_split = mano_jugador[0][0] == mano_jugador[1][0]
+    # Verificar si el jugador ya ganó o empató al iniciar
+    valor_jugador = calcular_valor_mano(mano_jugador)
+    valor_crupier = calcular_valor_mano([mano_crupier[0]])
 
-    # Determinar si se puede hacer double down
-    se_puede_double_down = len(mano_jugador) == 2  # Solo se puede double down con las dos primeras cartas
+    if valor_jugador == 21 and valor_crupier != 21:
+        return {
+            "partida_id": partida_id,
+            "resultado_inicial": "¡Felicidades! Blackjack, el jugador gana.",
+            "acciones_disponibles": [],
+            "valor_jugador": valor_jugador,
+            "valor_crupier": valor_crupier,
+            "mano_jugador": mostrar_mano(mano_jugador),
+            "mano_crupier": f"{mano_crupier[0][0]} de {mano_crupier[0][1]} y una carta oculta",
+            "cartas_restantes": len(baraja)
+        }
+    elif valor_jugador == 21 and valor_crupier == 21:
+        return {
+            "partida_id": partida_id,
+            "resultado_inicial": "Empate. Ambos tienen Blackjack.",
+            "acciones_disponibles": [],
+            "valor_jugador": valor_jugador,
+            "valor_crupier": valor_crupier,
+            "mano_jugador": mostrar_mano(mano_jugador),
+            "mano_crupier": f"{mano_crupier[0][0]} de {mano_crupier[0][1]} y una carta oculta",
+            "cartas_restantes": len(baraja)
+        }
+
+    # Lista de acciones disponibles
+    acciones_disponibles = ["pedir", "plantarse"]
+
+    # Modificar según las cartas iniciales (se quita la opción de split y double down)
+    se_puede_split = mano_jugador[0][0] == mano_jugador[1][0]
+    if se_puede_split:
+        acciones_disponibles.append("split")
+
+    se_puede_double_down = len(mano_jugador) == 2  # Solo si son las dos primeras cartas
+    if se_puede_double_down:
+        acciones_disponibles.append("doblar")
 
     return {
         "partida_id": partida_id,
+        "resultado_inicial": None,  # No hay ganador ni empate inmediato
+        "acciones_disponibles": acciones_disponibles,
+        "valor_jugador": valor_jugador,
+        "valor_crupier": valor_crupier,
         "mano_jugador": mostrar_mano(mano_jugador),
-        "valor_jugador": calcular_valor_mano(mano_jugador),
         "mano_crupier": f"{mano_crupier[0][0]} de {mano_crupier[0][1]} y una carta oculta",
-        "valor_crupier": VALORES_CARTAS[mano_crupier[0][0]],
-        "cartas_restantes": len(baraja),
-        "se_puede_split": se_puede_split,
-        "se_puede_double_down": se_puede_double_down,
-        "acciones_disponibles": ["pedir", "doblar"]
+        "cartas_restantes": len(baraja)
     }
 
 
