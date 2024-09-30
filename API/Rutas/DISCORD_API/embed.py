@@ -40,6 +40,7 @@ async def send_blackjack_embed(user_id: str, request: EmbedRequest):
         # Construir el embed
         embed_data = {
             "description": description,
+            "color": 0x03a8f4,
             "fields": [
                 {
                     "name": "Tu mano",
