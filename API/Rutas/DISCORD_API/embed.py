@@ -9,7 +9,7 @@ class EmbedRequest(BaseModel):
     token: str
 
 @router.post("/send_blackjack_embed/{user_id}/")
-async def send_blackjack_embed(user_id: str, request: EmbedRequest):
+async def send_blackjack_embed(user_id: str, author: str, url_author: str, request: EmbedRequest):
     async with httpx.AsyncClient() as client:  # Usar un cliente asíncrono
         # Obtener los datos del juego de Blackjack
         blackjack_response = await client.get("https://bdscript-tools.onrender.com/blackjack/nuevo/")
@@ -55,6 +55,10 @@ async def send_blackjack_embed(user_id: str, request: EmbedRequest):
             ],
             "footer": {
                 "text": f"Cartas Restantes: {blackjack_data['cartas_restantes']} | Partida ID: {blackjack_data['partida_id']}"
+            },
+             "author": {
+                "name": author,  # Cambia esto al nombre deseado
+                "url": url_author  # Cambia esto a la URL deseada
             }
         }
 
