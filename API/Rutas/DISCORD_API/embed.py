@@ -1,78 +1,94 @@
-from fastapi import APIRouter, HTTPException
-import requests
-from pydantic import BaseModel, conlist
+from fastapi import FastAPI, HTTPException, APIRouter
+from pydantic import BaseModel
+import httpx
 
+app = FastAPI()
 router = APIRouter()
 
-class Field(BaseModel):
-    name: str
-    value: str
-    inline: bool = False  # Por defecto, los campos no son inline
-
-class Button(BaseModel):
-    type: int = 2  # 2 es el tipo de botón
+class EmbedButton(BaseModel):
     label: str
-    style: int  # Estilo del botón (1 = primario, 2 = secundario, 3 = éxito, 4 = peligro)
+    style: int
     custom_id: str
 
-class Embed(BaseModel):
-    description: str
-    footer: str
-    author: str
-    author_icon: str
-    fields: conlist(Field)  # Lista de campos
+class EmbedRequest(BaseModel):
+    channel_id: str
+    token: str
 
-class MessageData(BaseModel):
-    embed: Embed
-    buttons: conlist(Button)  # Lista de botones
-
-@router.post("/send_embed/")
-def send_embed(channel_id: str, token: str, message_data: MessageData):
-    """Envía un embed a un canal de Discord con botones."""
-    url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
-    headers = {
-        "Authorization": f"Bot {token}",
-        "Content-Type": "application/json"
-    }
+@router.post("/send_blackjack_embed/{user_id}/")
+async def send_blackjack_embed(user_id: str, request: EmbedRequest):
+    # Obtener los datos del juego de Blackjack
+    async with httpx.AsyncClient() as client:
+        blackjack_response = await client.get("https://bdscript-tools.onrender.com/blackjack/nuevo/")
     
+    if blackjack_response.status_code != 200:
+        raise HTTPException(status_code=blackjack_response.status_code, detail=blackjack_response.json())
+    
+    blackjack_data = blackjack_response.json()
+
+    # Construir la descripción
+    description_parts = []
+    if "pedir" in blackjack_data['acciones_disponibles']:
+        description_parts.append("Toma otra carta")
+    if "plantarse" in blackjack_data['acciones_disponibles']:
+        description_parts.append("Termina el juego")
+    if "doblar" in blackjack_data['acciones_disponibles']:
+        description_parts.append("Duplica tu apuesta, pide una vez, luego parate.")
+    if "dividir" in blackjack_data['acciones_disponibles']:
+        description_parts.append("Divide tus cartas en dos manos.")
+
+    description = "\n".join(description_parts) if description_parts else "No hay acciones disponibles."
+
+    # Construir el embed
     embed_data = {
-        "embeds": [
+        "description": description,
+        "fields": [
             {
-                "description": message_data.embed.description,
-                "footer": {
-                    "text": message_data.embed.footer,
-                },
-                "author": {
-                    "name": message_data.embed.author,
-                    "icon_url": message_data.embed.author_icon
-                },
-                "fields": [
-                    {
-                        "name": field.name,
-                        "value": field.value,
-                        "inline": field.inline
-                    } for field in message_data.embed.fields
-                ]
+                "name": "Tu mano",
+                "value": f"{blackjack_data['mano_jugador']}\n\nValor: {str(blackjack_data['valor_jugador'])}",
+                "inline": True
+            },
+            {
+                "name": "Mano del crupier",
+                "value": f"{blackjack_data['mano_crupier']}\n\nValor: {str(blackjack_data['valor_crupier'])}",
+                "inline": True
             }
         ],
-        "components": [
-            {
-                "type": 1,
-                "components": [
-                    {
-                        "type": button.type,
-                        "label": button.label,
-                        "style": button.style,
-                        "custom_id": button.custom_id
-                    } for button in message_data.buttons
-                ]
-            }
-        ]
+        "footer": {
+            "text": f"Partida ID: {blackjack_data['partida_id']}"
+        }
     }
 
-    response = requests.post(url, json=embed_data, headers=headers)
-    
-    if response.status_code != 200:
-        raise HTTPException(status_code=response.status_code, detail=response.json())
-    
-    return {"message": "Embed con botones enviado con éxito"}
+    # Construir botones según las acciones disponibles
+    buttons = []
+    for action in blackjack_data['acciones_disponibles']:
+        if action == "pedir":
+            buttons.append({"label": "Pedir", "style": 1, "custom_id": f"boton-pedir-{user_id})
+        elif action == "plantarse":
+            buttons.append({"label": "Plantarse", "style": 1, "custom_id": f"boton-plantarse-{user_id}"})
+        elif action == "doblar":
+            buttons.append({"label": "Doblar", "style": 2, "custom_id": f"boton-doblar-{user_id}"})
+        elif action == "dividir":
+            buttons.append({"label": "Dividir", "style": 2, "custom_id":f "boton-split-{user_id}"})
+
+    # Preparar el payload para Discord
+    data = {
+        "channel_id": request.channel_id,
+        "embed": embed_data,
+        "buttons": buttons
+    }
+
+    # Enviar el embed a Discord
+    headers = {
+        "Authorization": f"Bot {request.token}",
+        "Content-Type": "application/json"
+    }
+
+    async with httpx.AsyncClient() as client:
+        discord_response = await client.post(f"https://discord.com/api/v10/channels/{request.channel_id}/messages", json=data, headers=headers)
+
+    if discord_response.status_code != 200:
+        raise HTTPException(status_code=discord_response.status_code, detail=discord_response.json())
+
+    return {"detail": "Embed enviado correctamente."}
+
+app.include_router(router)
