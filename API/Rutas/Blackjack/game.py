@@ -138,7 +138,7 @@ def estado_partida(partida_id: str):
         "cartas_restantes": len(partida["baraja"])
     }
 
-@router.get("/api/blackjack_action/{partida_id}/")
+@router.get("/blackjack_action/{partida_id}/")
 def accion_partida(partida_id: str, accion: str):
     """Realiza una acción en la partida (pedir, plantarse, doblar, split)."""
     partida = partidas.get(partida_id)
