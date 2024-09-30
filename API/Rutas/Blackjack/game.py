@@ -160,11 +160,13 @@ def accion_partida(partida_id: str, accion: str):
     if accion == "doblar":
         partida["mano_jugador"].append(repartir_carta(partida["baraja"]))
         valor_jugador = calcular_valor_mano(partida["mano_jugador"])
-        partida["finalizada"] = True
+        partida["finalizada"] = False  # La partida original sigue activa
+
+        # Si al doblar el jugador se pasa de 21, pierde la partida original
         if valor_jugador > 21:
             ganador = "crupier"
             return {
-                "mensaje": "¡El jugador se pasa! El crupier gana.",
+                "mensaje": "¡El jugador se pasa al doblar! El crupier gana.",
                 "mano_jugador": mostrar_mano(partida["mano_jugador"]),
                 "valor_jugador": valor_jugador,
                 "mano_crupier": mostrar_mano(partida["mano_crupier"]),
@@ -173,23 +175,27 @@ def accion_partida(partida_id: str, accion: str):
                 "opciones_disponibles": [],
                 "ganador": ganador
             }
-        else:
-            # Crear una nueva partida pero mantener la partida original disponible
-            nueva_partida_id = str(uuid.uuid4())
-            partidas[nueva_partida_id] = {
-                "baraja": partida["baraja"],
-                "mano_jugador": [repartir_carta(partida["baraja"]), repartir_carta(partida["baraja"])],
-                "mano_crupier": partida["mano_crupier"],
-                "finalizada": False
-            }
-            return {
-                "mensaje": "El jugador ha doblado.",
-                "nueva_partida_id": nueva_partida_id,
-                "mano_jugador": mostrar_mano(partida["mano_jugador"]),
-                "valor_jugador": valor_jugador,
-                "opciones_disponibles": [],
-                "ganador": ganador  # Aquí puede ser None, ya que no hay ganador aún
-            }
+
+        # Crear una nueva partida pero mantener la partida original disponible
+        nueva_partida_id = str(uuid.uuid4())
+        nueva_mano_jugador = [repartir_carta(partida["baraja"]), repartir_carta(partida["baraja"])]
+        nueva_mano_crupier = [repartir_carta(partida["baraja"]), repartir_carta(partida["baraja"])]
+
+        partidas[nueva_partida_id] = {
+            "baraja": partida["baraja"],
+            "mano_jugador": nueva_mano_jugador,
+            "mano_crupier": nueva_mano_crupier,
+            "finalizada": False
+        }
+
+        return {
+            "mensaje": "El jugador ha doblado.",
+            "nueva_partida_id": nueva_partida_id,
+            "mano_jugador": mostrar_mano(partida["mano_jugador"]),
+            "valor_jugador": valor_jugador,
+            "opciones_disponibles": ["pedir", "plantarse"],  # Opciones disponibles en la partida original
+            "ganador": ganador  # None porque aún no ha ganado nadie
+        }
 
     if accion == "split":
         if partida["mano_jugador"][0][0] != partida["mano_jugador"][1][0]:
@@ -253,3 +259,4 @@ def accion_partida(partida_id: str, accion: str):
                 "opciones_disponibles": [],
                 "ganador": ganador
             }
+
