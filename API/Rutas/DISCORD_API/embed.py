@@ -93,3 +93,5 @@ async def send_blackjack_embed(user_id: str, request: EmbedRequest):
     return {"detail": "Embed enviado correctamente."}
 
 
+from main import app
+app.include_router(router)
