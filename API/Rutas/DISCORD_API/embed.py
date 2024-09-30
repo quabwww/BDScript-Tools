@@ -62,7 +62,7 @@ async def send_blackjack_embed(user_id: str, request: EmbedRequest):
     buttons = []
     for action in blackjack_data['acciones_disponibles']:
         if action == "pedir":
-            buttons.append({"label": "Pedir", "style": 1, "custom_id": f"boton-pedir-{user_id})
+            buttons.append({"label": "Pedir", "style": 1, "custom_id": f"boton-pedir-{user_id}"})
         elif action == "plantarse":
             buttons.append({"label": "Plantarse", "style": 1, "custom_id": f"boton-plantarse-{user_id}"})
         elif action == "doblar":
