@@ -144,11 +144,16 @@ def accion_partida(partida_id: str, accion: str):
     partida = partidas.get(partida_id)
     if not partida:
         raise HTTPException(status_code=404, detail="Partida no encontrada")
-    
-    if partida["finalizada"]:
-        raise HTTPException(status_code=400, detail="La partida ya ha finalizado")
 
-    if accion not in ["pedir", "plantarse", "doblar", "split"]:
+    if partida["finalizada"]:
+        return {
+            "mensaje": "La partida ya ha finalizado",
+            "opciones_disponibles": []
+        }
+
+    opciones_disponibles = ["pedir", "plantarse", "doblar", "split"]
+
+    if accion not in opciones_disponibles:
         raise HTTPException(status_code=400, detail="Acción no válida")
 
     if accion == "pedir":
@@ -162,8 +167,11 @@ def accion_partida(partida_id: str, accion: str):
                 "valor_jugador": valor_jugador,
                 "mano_crupier": mostrar_mano(partida["mano_crupier"]),
                 "valor_crupier": calcular_valor_mano(partida["mano_crupier"]),
-                "cartas_restantes": len(partida["baraja"])
+                "cartas_restantes": len(partida["baraja"]),
+                "opciones_disponibles": []
             }
+        else:
+            opciones_disponibles = ["pedir", "plantarse", "doblar"]
 
     if accion == "doblar":
         partida["mano_jugador"].append(repartir_carta(partida["baraja"]))
@@ -176,60 +184,53 @@ def accion_partida(partida_id: str, accion: str):
                 "valor_jugador": valor_jugador,
                 "mano_crupier": mostrar_mano(partida["mano_crupier"]),
                 "valor_crupier": calcular_valor_mano(partida["mano_crupier"]),
-                "cartas_restantes": len(partida["baraja"])
+                "cartas_restantes": len(partida["baraja"]),
+                "opciones_disponibles": []
+            }
+        else:
+            # Inicia una nueva partida si es doblar
+            nueva_partida_id = iniciar_nueva_partida()
+            return {
+                "mensaje": "El jugador ha doblado.",
+                "nueva_partida_id": nueva_partida_id,
+                "mano_jugador": mostrar_mano(partida["mano_jugador"]),
+                "valor_jugador": valor_jugador,
+                "opciones_disponibles": []
             }
 
     if accion == "split":
-        # Verificar si las dos cartas son del mismo valor para hacer split
         if partida["mano_jugador"][0][0] != partida["mano_jugador"][1][0]:
             raise HTTPException(status_code=400, detail="No se pueden dividir cartas de diferente valor")
-        
-        # Crear dos manos separadas para el jugador
+
         nueva_mano_jugador = [partida["mano_jugador"][0], repartir_carta(partida["baraja"])]
         partida["mano_jugador"] = [partida["mano_jugador"][1], repartir_carta(partida["baraja"])]
-
-        # Jugar cada mano por separado
         manos_resultantes = []
+
         for mano in [nueva_mano_jugador, partida["mano_jugador"]]:
-            while True:
-                mostrar_mano_jugador = mostrar_mano(mano)
-                valor_jugador = calcular_valor_mano(mano)
-                
-                if valor_jugador > 21:
-                    manos_resultantes.append({
-                        "mensaje": "¡El jugador se pasa! El crupier gana.",
-                        "mano_jugador": mostrar_mano_jugador,
-                        "valor_jugador": valor_jugador,
-                        "mano_crupier": mostrar_mano(partida["mano_crupier"]),
-                        "valor_crupier": calcular_valor_mano(partida["mano_crupier"]),
-                        "cartas_restantes": len(partida["baraja"])
-                    })
-                    break
-                
-                decision = input(f"¿Qué acción deseas para la mano {mostrar_mano_jugador}? (pedir/plantarse/doblar): ")
-                
-                if decision not in ["pedir", "plantarse", "doblar"]:
-                    raise HTTPException(status_code=400, detail="Acción no válida")
-                
-                if decision == "pedir":
-                    mano.append(repartir_carta(partida["baraja"]))
-                elif decision == "doblar":
-                    mano.append(repartir_carta(partida["baraja"]))
-                    break
-                elif decision == "plantarse":
-                    break
-        
+            valor_jugador = calcular_valor_mano(mano)
+            if valor_jugador > 21:
+                manos_resultantes.append({
+                    "mensaje": "¡El jugador se pasa! El crupier gana.",
+                    "mano_jugador": mostrar_mano(mano),
+                    "valor_jugador": valor_jugador
+                })
+            else:
+                manos_resultantes.append({
+                    "mensaje": "Mano válida.",
+                    "mano_jugador": mostrar_mano(mano),
+                    "valor_jugador": valor_jugador
+                })
         partida["finalizada"] = True
         return {
             "manos_resultantes": manos_resultantes,
-            "cartas_restantes": len(partida["baraja"])
+            "cartas_restantes": len(partida["baraja"]),
+            "opciones_disponibles": []
         }
-    
+
     if accion == "plantarse":
-        # Turno del crupier
         while calcular_valor_mano(partida["mano_crupier"]) < 17:
             partida["mano_crupier"].append(repartir_carta(partida["baraja"]))
-        
+
         valor_jugador = calcular_valor_mano(partida["mano_jugador"])
         valor_crupier = calcular_valor_mano(partida["mano_crupier"])
         partida["finalizada"] = True
@@ -240,14 +241,15 @@ def accion_partida(partida_id: str, accion: str):
             mensaje = "El crupier gana."
         else:
             mensaje = "Es un empate."
-        
+
         return {
             "mensaje": mensaje,
             "mano_jugador": mostrar_mano(partida["mano_jugador"]),
             "valor_jugador": valor_jugador,
             "mano_crupier": mostrar_mano(partida["mano_crupier"]),
             "valor_crupier": valor_crupier,
-            "cartas_restantes": len(partida["baraja"])
+            "cartas_restantes": len(partida["baraja"]),
+            "opciones_disponibles": []
         }
 
     return {
@@ -255,7 +257,8 @@ def accion_partida(partida_id: str, accion: str):
         "valor_jugador": calcular_valor_mano(partida["mano_jugador"]),
         "mano_crupier": mostrar_mano(partida["mano_crupier"]),
         "valor_crupier": calcular_valor_mano(partida["mano_crupier"]),
-        "cartas_restantes": len(partida["baraja"])
+        "cartas_restantes": len(partida["baraja"]),
+        "opciones_disponibles": opciones_disponibles
     }
 
 
