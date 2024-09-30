@@ -68,7 +68,7 @@ async def send_blackjack_embed(user_id: str, request: EmbedRequest):
         elif action == "doblar":
             buttons.append({"label": "Doblar", "style": 2, "custom_id": f"boton-doblar-{user_id}"})
         elif action == "dividir":
-            buttons.append({"label": "Dividir", "style": 2, "custom_id":f "boton-split-{user_id}"})
+            buttons.append({"label": "Dividir", "style": 2, "custom_id": f"boton-split-{user_id}"})
 
     # Preparar el payload para Discord
     data = {
