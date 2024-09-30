@@ -35,11 +35,14 @@ async def send_blackjack_embed(user_id: str, request: EmbedRequest):
         # Construir la descripción
         description_parts = []
         if "pedir" in blackjack_data['acciones_disponibles']:
-            description_parts.append("Toma otra carta")
+            description_parts.append("`Pedir` - Toma otra carta")
         if "plantarse" in blackjack_data['acciones_disponibles']:
-            description_parts.append("Termina el juego")
+            description_parts.append("`Plantarse``- Termina el juego")
         if "doblar" in blackjack_data['acciones_disponibles']:
-            description_parts.append("Duplica tu apuesta, pide una vez, luego parate.")
+            description_parts.append("`Doblar` - Duplica tu apuesta, pide una vez, luego parate.")
+        if "split" in blackjack_data['acciones_disponibles']:
+            description_parts.append("`Dividir` - Divide tus cartas en dos manos.")
+
 
         description = "\n".join(description_parts) if description_parts else "No hay acciones disponibles."
 
