@@ -107,67 +107,6 @@ def nueva_partida():
         "cartas_restantes": len(baraja)
     }
 
-
-@router.get("/blackjack/nuevo/")
-def nueva_partida():
-    """Inicia una nueva partida de Blackjack."""
-    global partida_counter
-    partida_counter += 1  # Incrementar el contador para el ID de la partida
-    partida_id = partida_counter
-
-    # Crear y barajar la baraja
-    baraja = crear_baraja()
-    barajar_baraja(baraja)
-
-    # Repartir las cartas iniciales
-    mano_jugador = [repartir_carta(baraja), repartir_carta(baraja)]
-    mano_crupier = [repartir_carta(baraja), repartir_carta(baraja)]
-
-    partidas[partida_id] = {
-        "baraja": baraja,
-        "mano_jugador": [mano_jugador],  # Cambiado para permitir múltiples manos
-        "mano_crupier": mano_crupier,
-        "finalizada": False
-    }
-
-    # Calcular valores
-    valor_jugador = calcular_valor_mano(mano_jugador)
-    valor_crupier = calcular_valor_mano([mano_crupier[0]])
-
-    if valor_jugador == 21:
-        return {
-            "partida_id": partida_id,
-            "resultado_inicial": "¡Felicidades! Blackjack, el jugador gana.",
-            "acciones_disponibles": [],
-            "valor_jugador": valor_jugador,
-            "valor_crupier": valor_crupier,
-            "mano_jugador": mostrar_mano(mano_jugador),
-            "mano_crupier": f"{mano_crupier[0][0]} de {mano_crupier[0][1]} y una carta oculta",
-            "cartas_restantes": len(baraja)
-        }
-
-    # Lista de acciones disponibles
-    acciones_disponibles = ["pedir", "plantarse"]
-
-    se_puede_split = mano_jugador[0][0] == mano_jugador[1][0]
-    if se_puede_split:
-        acciones_disponibles.append("split")
-
-    se_puede_double_down = len(mano_jugador) == 2
-    if se_puede_double_down:
-        acciones_disponibles.append("doblar")
-
-    return {
-        "partida_id": partida_id,
-        "resultado_inicial": None,
-        "acciones_disponibles": acciones_disponibles,
-        "valor_jugador": valor_jugador,
-        "valor_crupier": valor_crupier,
-        "mano_jugador": mostrar_mano(mano_jugador),
-        "mano_crupier": f"{mano_crupier[0][0]} de {mano_crupier[0][1]} y una carta oculta",
-        "cartas_restantes": len(baraja)
-    }
-
 @router.get("/blackjack_action/{partida_id}/")
 def accion_partida(partida_id: int, accion: str, mano_index: int = 0):
     """Realiza una acción en la partida (pedir, plantarse, doblar, split)."""
@@ -185,22 +124,20 @@ def accion_partida(partida_id: int, accion: str, mano_index: int = 0):
 
     # Manejo de la acción "split"
     if accion == "split":
-        if len(partida["mano_jugador"]) == 1:
-            mano_original = partida["mano_jugador"][0]
-            if mano_original[0][0] == mano_original[1][0]:  # Verificar si se puede dividir
-                nueva_mano = [mano_original[1]]  # Segunda mano con la segunda carta
-                partida["mano_jugador"] = [mano_original[0], nueva_mano]  # Actualizar las manos
-                partida["baraja"].append(repartir_carta(partida["baraja"]))  # Repartir una carta a la nueva mano
-                partida["baraja"].append(repartir_carta(partida["baraja"]))  # Repartir una carta a la mano original
-
-                return {
-                    "mensaje": "¡Has dividido tu mano!",
-                    "mano_jugador": [mostrar_mano(mano) for mano in partida["mano_jugador"]],
-                    "cartas_restantes": len(partida["baraja"]),
-                    "acciones_disponibles": ["pedir", "plantarse"]  # Opciones de acción actualizadas
-                }
-            else:
-                raise HTTPException(status_code=400, detail="No se puede dividir esta mano")
+        mano_jugador = partida["mano_jugador"]
+        if len(mano_jugador) == 2 and mano_jugador[0][0] == mano_jugador[1][0]:
+            nueva_mano = [mano_jugador[1]]  # Segunda mano con la segunda carta
+            partida["mano_jugador"] = [[mano_jugador[0]], nueva_mano]  # Actualizar las manos
+            partida["mano_jugador"][0].append(repartir_carta(partida["baraja"]))  # Repartir carta a la mano original
+            partida["mano_jugador"][1].append(repartir_carta(partida["baraja"]))  # Repartir carta a la nueva mano
+            return {
+                "mensaje": "¡Has dividido tu mano!",
+                "mano_jugador": [mostrar_mano(mano) for mano in partida["mano_jugador"]],
+                "cartas_restantes": len(partida["baraja"]),
+                "acciones_disponibles": ["pedir", "plantarse"]
+            }
+        else:
+            raise HTTPException(status_code=400, detail="No se puede dividir esta mano")
 
     # Si se selecciona "pedir"
     if accion == "pedir":
@@ -218,6 +155,13 @@ def accion_partida(partida_id: int, accion: str, mano_index: int = 0):
                 "cartas_restantes": len(partida["baraja"]),
                 "ganador": "crupier"
             }
+        return {
+            "mensaje": "Carta repartida.",
+            "mano_jugador": mostrar_mano(mano_actual),
+            "valor_jugador": valor_jugador,
+            "cartas_restantes": len(partida["baraja"]),
+            "ganador": None
+        }
 
     # Si se selecciona "doblar"
     if accion == "doblar":
@@ -239,7 +183,7 @@ def accion_partida(partida_id: int, accion: str, mano_index: int = 0):
             "mensaje": "El jugador ha doblado.",
             "mano_jugador": mostrar_mano(mano_actual),
             "valor_jugador": valor_jugador,
-            "opciones_disponibles": ["plantarse"],
+            "cartas_restantes": len(partida["baraja"]),
             "ganador": None
         }
 
@@ -248,42 +192,27 @@ def accion_partida(partida_id: int, accion: str, mano_index: int = 0):
         valor_jugador = calcular_valor_mano(partida["mano_jugador"][mano_index])
         valor_crupier = calcular_valor_mano(partida["mano_crupier"])
 
+        # El crupier sigue pidiendo hasta alcanzar 17 o más
         while valor_crupier < 17:
             partida["mano_crupier"].append(repartir_carta(partida["baraja"]))
             valor_crupier = calcular_valor_mano(partida["mano_crupier"])
 
-        partida["finalizada"] = True
-
         if valor_crupier > 21 or valor_jugador > valor_crupier:
-            return {
-                "mensaje": "¡El jugador gana!",
-                "mano_jugador": mostrar_mano(partida["mano_jugador"]),
-                "valor_jugador": valor_jugador,
-                "mano_crupier": mostrar_mano(partida["mano_crupier"]),
-                "valor_crupier": valor_crupier,
-                "cartas_restantes": len(partida["baraja"]),
-                "ganador": "jugador"
-            }
+            ganador = "jugador"
         elif valor_jugador < valor_crupier:
-            return {
-                "mensaje": "¡El crupier gana!",
-                "mano_jugador": mostrar_mano(partida["mano_jugador"]),
-                "valor_jugador": valor_jugador,
-                "mano_crupier": mostrar_mano(partida["mano_crupier"]),
-                "valor_crupier": valor_crupier,
-                "cartas_restantes": len(partida["baraja"]),
-                "ganador": "crupier"
-            }
+            ganador = "crupier"
         else:
-            return {
-                "mensaje": "¡Es un empate!",
-                "mano_jugador": mostrar_mano(partida["mano_jugador"]),
-                "valor_jugador": valor_jugador,
-                "mano_crupier": mostrar_mano(partida["mano_crupier"]),
-                "valor_crupier": valor_crupier,
-                "cartas_restantes": len(partida["baraja"]),
-                "ganador": "empate"
-            }
+            ganador = "empate"
 
-    return {"message": "Acción realizada", "partida_id": partida_id, "accion": accion}
+        partida["finalizada"] = True
+        return {
+            "mensaje": "El jugador se planta.",
+            "valor_jugador": valor_jugador,
+            "mano_jugador": mostrar_mano(partida["mano_jugador"]),
+            "valor_crupier": valor_crupier,
+            "mano_crupier": mostrar_mano(partida["mano_crupier"]),
+            "cartas_restantes": len(partida["baraja"]),
+            "ganador": ganador
+        }
+
 
