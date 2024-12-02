@@ -70,17 +70,23 @@ def sort_and_paginate(
     return [{"user": k, "value": v} for k, v in paginated_data]
 
 # Endpoint para ordenar y paginar
-@router.get("/sort-and-paginate")
+@router.post("/sort-and-paginate")
 async def sort_and_paginate_endpoint(
-    data: Dict[str, int],
-    page: int = Query(1, description="Número de la página (1-indexado)"),
-    paginate: int = Query(10, description="Número de resultados por página"),
+    body: Dict[str, Dict[str, int]] = Body(..., description="JSON con datos y parámetros de paginación")
 ):
     """
-    Endpoint que recibe un diccionario de usuarios y valores, los ordena de mayor a menor,
-    y devuelve los resultados paginados.
+    Endpoint que recibe un JSON con un diccionario de usuarios y valores, 
+    los ordena de mayor a menor y devuelve los resultados paginados.
     """
     try:
+        # Extraer datos y parámetros del JSON recibido
+        data = body.get("data", {})
+        page = body.get("page", 1)
+        paginate = body.get("paginate", 10)
+
+        if not isinstance(data, dict) or not data:
+            raise ValueError("El campo 'data' debe ser un diccionario no vacío.")
+
         paginated_results = sort_and_paginate(data, page, paginate)
         return {
             "page": page,
@@ -92,4 +98,3 @@ async def sort_and_paginate_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail="Error interno del servidor")
-
