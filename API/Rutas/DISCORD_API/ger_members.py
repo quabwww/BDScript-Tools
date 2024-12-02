@@ -45,3 +45,51 @@ async def get_guild_members(
         raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+def sort_and_paginate(
+    data: Dict[str, int], page: int = 1, paginate: int = 10
+) -> List[Dict[str, int]]:
+    """
+    Ordena un diccionario de mayor a menor por valor y pagina los resultados.
+    """
+    if page < 1 or paginate < 1:
+        raise ValueError("La página y la paginación deben ser mayores a 0.")
+    
+    # Ordenar los datos de mayor a menor por valor
+    sorted_data = sorted(data.items(), key=lambda x: x[1], reverse=True)
+
+    # Calcular los índices de la paginación
+    start_index = (page - 1) * paginate
+    end_index = start_index + paginate
+
+    # Paginar los resultados
+    paginated_data = sorted_data[start_index:end_index]
+    
+    return [{"user": k, "value": v} for k, v in paginated_data]
+
+# Endpoint para ordenar y paginar
+@router.get("/sort-and-paginate")
+async def sort_and_paginate_endpoint(
+    data: Dict[str, int],
+    page: int = Query(1, description="Número de la página (1-indexado)"),
+    paginate: int = Query(10, description="Número de resultados por página"),
+):
+    """
+    Endpoint que recibe un diccionario de usuarios y valores, los ordena de mayor a menor,
+    y devuelve los resultados paginados.
+    """
+    try:
+        paginated_results = sort_and_paginate(data, page, paginate)
+        return {
+            "page": page,
+            "paginate": paginate,
+            "total": len(data),
+            "results": paginated_results,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
