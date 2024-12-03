@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, List
+import math
 
 # Configura el router de FastAPI
 router = APIRouter()
@@ -44,15 +45,25 @@ async def sort_and_paginate_endpoint(body: PaginationRequest):
         except ValueError:
             raise ValueError("Todos los valores en 'dic' deben ser convertibles a enteros.")
 
+        # Total de elementos y cálculo de páginas
+        total_items = len(data)
+        total_pages = math.ceil(total_items / body.paginas)
+
+        # Validar que la página solicitada esté dentro del rango válido
+        if body.page > total_pages:
+            raise ValueError("La página solicitada excede el número total de páginas disponibles.")
+
         # Realizar la paginación
         paginated_results = sort_and_paginate(data, body.page, body.paginas)
         return {
-            "page": body.page,
-            "paginate": body.paginas,
-            "total": len(data),
+            "current_page": body.page,
+            "items_per_page": body.paginas,
+            "total_items": total_items,
+            "total_pages": total_pages,
             "results": paginated_results,
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail="Error interno del servidor")
+
