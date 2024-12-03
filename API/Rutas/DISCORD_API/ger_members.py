@@ -1,5 +1,8 @@
-from fastapi import APIRouter, HTTPException, Query
+
 import httpx
+from fastapi import APIRouter, HTTPException, Query, Body
+
+from typing import List, Dict
 
 # Configura el router de FastAPI
 router = APIRouter()
