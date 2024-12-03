@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, List
 
@@ -28,7 +28,8 @@ def sort_and_paginate(data: Dict[str, int], page: int = 1, paginate: int = 10) -
     # Paginar los resultados
     paginated_data = sorted_data[start_index:end_index]
     
-    return [{"user": k, "value": v} for k, v in paginated_data]
+    # Incluir la enumeración a partir de 1
+    return [{"position": idx + 1, "user": k, "value": v} for idx, (k, v) in enumerate(paginated_data, start=start_index)]
 
 @router.post("/sort-and-paginate")
 async def sort_and_paginate_endpoint(body: PaginationRequest):
