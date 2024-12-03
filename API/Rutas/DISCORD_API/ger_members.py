@@ -70,7 +70,6 @@ def sort_and_paginate(data: Dict[str, int], page: int = 1, paginate: int = 10) -
     
     return [{"user": k, "value": v} for k, v in paginated_data]
 
-# Endpoint para ordenar y paginar
 @router.post("/sort-and-paginate")
 async def sort_and_paginate_endpoint(
     body: Dict[str, any] = Body(..., description="JSON con datos y parámetros de paginación")
@@ -88,8 +87,11 @@ async def sort_and_paginate_endpoint(
         if not isinstance(data, dict) or not data:
             raise ValueError("El campo 'dic' debe ser un diccionario no vacío.")
         
-        if not all(isinstance(v, int) for v in data.values()):
-            raise ValueError("Todos los valores en 'dic' deben ser enteros.")
+        # Convertir valores de cadenas a enteros
+        try:
+            data = {k: int(v) for k, v in data.items()}
+        except ValueError:
+            raise ValueError("Todos los valores en 'dic' deben ser convertibles a enteros.")
 
         paginated_results = sort_and_paginate(data, page, paginate)
         return {
