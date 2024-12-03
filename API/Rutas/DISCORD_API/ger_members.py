@@ -51,9 +51,7 @@ async def get_guild_members(
 
 
 
-def sort_and_paginate(
-    data: Dict[str, int], page: int = 1, paginate: int = 10
-) -> List[Dict[str, int]]:
+def sort_and_paginate(data: Dict[str, int], page: int = 1, paginate: int = 10) -> List[Dict[str, int]]:
     """
     Ordena un diccionario de mayor a menor por valor y pagina los resultados.
     """
@@ -75,7 +73,7 @@ def sort_and_paginate(
 # Endpoint para ordenar y paginar
 @router.post("/sort-and-paginate")
 async def sort_and_paginate_endpoint(
-    body: Dict[str, Dict[str, int]] = Body(..., description="JSON con datos y parámetros de paginación")
+    body: Dict[str, any] = Body(..., description="JSON con datos y parámetros de paginación")
 ):
     """
     Endpoint que recibe un JSON con un diccionario de usuarios y valores, 
@@ -83,12 +81,15 @@ async def sort_and_paginate_endpoint(
     """
     try:
         # Extraer datos y parámetros del JSON recibido
-        data = body.get("data", {})
-        page = body.get("page", 1)
-        paginate = body.get("paginate", 10)
+        data = body.get("dic", {})
+        page = int(body.get("page", 1))
+        paginate = int(body.get("paginas", 10))
 
         if not isinstance(data, dict) or not data:
-            raise ValueError("El campo 'data' debe ser un diccionario no vacío.")
+            raise ValueError("El campo 'dic' debe ser un diccionario no vacío.")
+        
+        if not all(isinstance(v, int) for v in data.values()):
+            raise ValueError("Todos los valores en 'dic' deben ser enteros.")
 
         paginated_results = sort_and_paginate(data, page, paginate)
         return {
