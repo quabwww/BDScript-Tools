@@ -139,5 +139,6 @@ def bck(body: Estruc):
 
     return Response(content=img_buffer.getvalue(), media_type="image/png")
 
-
+from main import app
+app.include_router(router)
 
