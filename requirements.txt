@@ -5,3 +5,4 @@ uvicorn
 requests
 easy-pil
 httpx
+pillow
