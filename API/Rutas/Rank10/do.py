@@ -121,9 +121,9 @@ class Estruc(BaseModel):
     number_espace: int = 120
 
 
-app = APIRouter()
+router = APIRouter()
 
-@app.post("/api/board10/")
+@router.post("/api/board10/")
 def bck(body: Estruc):
     imagen = crear_imagen(body.id_emoji, 
                           body.url_fondo, 
@@ -138,3 +138,6 @@ def bck(body: Estruc):
     img_buffer.seek(0)
 
     return Response(content=img_buffer.getvalue(), media_type="image/png")
+
+
+
