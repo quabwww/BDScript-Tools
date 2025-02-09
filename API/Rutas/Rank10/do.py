@@ -66,7 +66,7 @@ def crear_imagen(ID_EMOJI, URL_FONDO, AVATARES_URLS, nombres, valores_extra, col
 
 # 📌 Cargar la fuente
     try:
-        fuente = ImageFont.truetype("n.otf", tamaño_texto)
+        fuente = ImageFont.truetype("API/Rutas/Rank10/n.otf", tamaño_texto)
     except IOError:
         fuente = ImageFont.load_default()
 
