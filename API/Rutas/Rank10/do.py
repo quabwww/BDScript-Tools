@@ -2,7 +2,7 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 import asyncio
-
+from easy_pil import Editor, Font
 
 from fastapi import APIRouter, Response, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -141,7 +141,7 @@ async def eliminar_archivo(filepath: str, delay: int = 3600):
         os.remove(filepath)
         print(f"Archivo eliminado: {filepath}")
 
-@router.post("/board10/")
+@router.post("/api/board10/")
 async def bck(request: Request, body: Estruc):
     imagen = crear_imagen(body.id_emoji, 
                           body.url_fondo, 
@@ -152,19 +152,10 @@ async def bck(request: Request, body: Estruc):
                           body.numeracion, 
                           body.number_espace)
     
-    filename = f"board_{body.id_emoji}.png"
-    filepath = os.path.join(SAVE_DIR, filename).replace("\\", "/")
-    imagen.save(filepath, format="PNG")
-
-    # Construir la URL completa usando la petición
-    base_url = str(request.base_url).rstrip("/")
-    image_url = f"{base_url}/static/images/{filename}"
-
-    # Crear una tarea para eliminar la imagen después de 1 hora
-    loop = asyncio.get_running_loop()
-    loop.create_task(eliminar_archivo(filepath, delay=3600))  
-
-    return JSONResponse(content={"image_url": image_url})
+    img_buffer = BytesIO()
+    imagen.image.save(img_buffer, format="PNG")
+    img_buffer.seek(0)
+    return Response(content=img_buffer.getvalue(), media_type="image/png")
     
 from main import app
 app.include_router(router)
