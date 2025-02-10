@@ -7,6 +7,7 @@ from easy_pil import Editor, Font
 from fastapi import APIRouter, Response, HTTPException, Query
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import StreamingResponse
 from fastapi import Request
 
 
@@ -156,7 +157,7 @@ async def bck(request: Request, body: Estruc):
     img_buffer = BytesIO()
     imagen.image.save(img_buffer, format="PNG")
     img_buffer.seek(0)
-    return Response(content=img_buffer.getvalue(), media_type="image/png")
+    return StreamingResponse(img_buffer, media_type="image/png")
     
 from main import app
 app.include_router(router)
