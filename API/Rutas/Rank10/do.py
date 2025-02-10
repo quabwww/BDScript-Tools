@@ -3,7 +3,7 @@ from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 import asyncio
 from easy_pil import Editor, Font
-
+import tempfile
 from fastapi import APIRouter, Response, HTTPException, Query
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -36,6 +36,19 @@ def abreviar_numero(num):
     num = int(num)
     return f"{num // 1_000_000}M" if num >= 1_000_000 else f"{num // 1_000}k" if num >= 1_000 else str(num)
 
+
+
+API_KEY_IMGBB = "c8739bb1c4981c66f1d91d6172550697"
+
+def subir_a_imgbb(imagen_path):
+    """Sube una imagen a ImgBB y retorna la URL de la imagen."""
+    url = "https://api.imgbb.com/1/upload"
+    with open(imagen_path, "rb") as archivo:
+        response = requests.post(url, data={"key": API_KEY_IMGBB}, files={"image": archivo})
+    
+    if response.status_code == 200:
+        return response.json().get("data", {}).get("url")
+    return None
 
 
 def crear_imagen(ID_EMOJI, URL_FONDO, AVATARES_URLS, nombres, valores_extra, color_texto, numeracion, number_espace: int=120):
@@ -110,8 +123,13 @@ def crear_imagen(ID_EMOJI, URL_FONDO, AVATARES_URLS, nombres, valores_extra, col
         if avatar_img:
             fondo.paste(avatar_img, (x1 + DESPLAZAMIENTO_AVATAR_X, y1 + 5), avatar_img)
 
-    gen = Editor(fondo).resize((900, 730))
-    return gen
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
+        fondo.save(temp_file, format="PNG")
+        temp_file_path = temp_file.name
+
+    url_imgbb = subir_a_imgbb(temp_file_path)
+
+    return url_imgbb  # 🔹 Retorna la URL de la imagen subida
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -130,18 +148,7 @@ class Estruc(BaseModel):
 
 router = APIRouter()
 
-SAVE_DIR = "static/images"
-os.makedirs(SAVE_DIR, exist_ok=True)
 
-# Montar carpeta estática
-router.mount("/static", StaticFiles(directory="static"), name="static")
-
-async def eliminar_archivo(filepath: str, delay: int = 3600):
-    """Elimina el archivo después de `delay` segundos (1 hora)."""
-    await asyncio.sleep(delay)
-    if os.path.exists(filepath):
-        os.remove(filepath)
-        print(f"Archivo eliminado: {filepath}")
 
 @router.post("/api/board10/")
 async def bck(request: Request, body: Estruc):
@@ -153,11 +160,7 @@ async def bck(request: Request, body: Estruc):
                           body.color_texto, 
                           body.numeracion, 
                           body.number_espace)
-    
-    img_buffer = BytesIO()
-    imagen.image.save(img_buffer, format="PNG")
-    img_buffer.seek(0)
-    return StreamingResponse(img_buffer, media_type="image/png")
+    return imagen
     
 from main import app
 app.include_router(router)
