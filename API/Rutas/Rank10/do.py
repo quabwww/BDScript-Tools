@@ -162,3 +162,5 @@ async def bck(body: Estruc):
 
     return JSONResponse(content={"image_url": image_url})
 
+from main import app
+app.include_router(router)
