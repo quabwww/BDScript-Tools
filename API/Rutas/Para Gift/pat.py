@@ -33,7 +33,7 @@ async def generate_petpet(url: str):
         # Subir el GIF a ImgBB
         upload_response = requests.post(
             "https://api.imgbb.com/1/upload",
-            data={"key": IMGBB_API_KEY},
+            data={"key": IMGBB_API_KEY, "expiration": 3600},
             files={"image": temp_output}
         )
 
