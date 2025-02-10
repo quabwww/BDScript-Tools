@@ -6,3 +6,4 @@ requests
 easy-pil
 httpx
 pillow
+pet-pet-gif
