@@ -123,7 +123,7 @@ class Estruc(BaseModel):
 
 router = APIRouter()
 
-@router.post("/api/board10/")
+@router.post("/board10/")
 def bck(body: Estruc):
     imagen = crear_imagen(body.id_emoji, 
                           body.url_fondo, 
