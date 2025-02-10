@@ -7,6 +7,9 @@ import asyncio
 from fastapi import APIRouter, Response, HTTPException, Query
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi import Request
+
+
 import requests
 import os
 
@@ -139,7 +142,7 @@ async def eliminar_archivo(filepath: str, delay: int = 3600):
         print(f"Archivo eliminado: {filepath}")
 
 @router.post("/board10/")
-async def bck(body: Estruc):
+async def bck(request: Request, body: Estruc):
     imagen = crear_imagen(body.id_emoji, 
                           body.url_fondo, 
                           body.avatares_url, 
@@ -153,14 +156,15 @@ async def bck(body: Estruc):
     filepath = os.path.join(SAVE_DIR, filename).replace("\\", "/")
     imagen.save(filepath, format="PNG")
 
-    # URL accesible
-    image_url = f"https://bdscript-tools-i1av.onrender.com/static/images/{filename}"
+    # Construir la URL completa usando la petición
+    base_url = str(request.base_url).rstrip("/")
+    image_url = f"{base_url}/static/images/{filename}"
 
-    # Crear una tarea para eliminar la imagen sin bloquear la respuesta
+    # Crear una tarea para eliminar la imagen después de 1 hora
     loop = asyncio.get_running_loop()
-    loop.create_task(eliminar_archivo(filepath, delay=3600))  # 1 hora
+    loop.create_task(eliminar_archivo(filepath, delay=3600))  
 
     return JSONResponse(content={"image_url": image_url})
-
+    
 from main import app
 app.include_router(router)
