@@ -109,7 +109,8 @@ def crear_imagen(ID_EMOJI, URL_FONDO, AVATARES_URLS, nombres, valores_extra, col
         if avatar_img:
             fondo.paste(avatar_img, (x1 + DESPLAZAMIENTO_AVATAR_X, y1 + 5), avatar_img)
 
-    return fondo
+    gen = Editor(fondo).resize((900, 730))
+    return gen
 
 from fastapi import FastAPI
 from pydantic import BaseModel
