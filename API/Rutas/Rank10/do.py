@@ -1,7 +1,7 @@
 import requests
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
-
+import asyncio
 
 
 from fastapi import APIRouter, Response, HTTPException, Query
@@ -121,10 +121,23 @@ class Estruc(BaseModel):
     number_espace: int = 120
 
 
-router = APIRouter()
+app = FastAPI()
 
-@router.post("/board10/")
-def bck(body: Estruc):
+SAVE_DIR = "static/images"
+os.makedirs(SAVE_DIR, exist_ok=True)
+
+# Montar carpeta estática
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+async def eliminar_archivo(filepath: str, delay: int = 3600):
+    """Elimina el archivo después de `delay` segundos (1 hora)."""
+    await asyncio.sleep(delay)
+    if os.path.exists(filepath):
+        os.remove(filepath)
+        print(f"Archivo eliminado: {filepath}")
+
+@app.post("/board10/")
+async def bck(body: Estruc):
     imagen = crear_imagen(body.id_emoji, 
                           body.url_fondo, 
                           body.avatares_url, 
@@ -133,12 +146,17 @@ def bck(body: Estruc):
                           body.color_texto, 
                           body.numeracion, 
                           body.number_espace)
-    img_buffer = BytesIO()
-    imagen.save(img_buffer, format="PNG")
-    img_buffer.seek(0)
+    
+    filename = f"board_{body.id_emoji}.png"
+    filepath = os.path.join(SAVE_DIR, filename).replace("\\", "/")
+    imagen.save(filepath, format="PNG")
 
-    return Response(content=img_buffer.getvalue(), media_type="image/png")
+    # URL accesible
+    image_url = f"https://bdscript-tools-i1av.onrender.com/static/images/{filename}"
 
-from main import app
-app.include_router(router)
+    # Crear una tarea para eliminar la imagen sin bloquear la respuesta
+    loop = asyncio.get_running_loop()
+    loop.create_task(eliminar_archivo(filepath, delay=10))  # 1 hora
+
+    return JSONResponse(content={"image_url": image_url})
 
