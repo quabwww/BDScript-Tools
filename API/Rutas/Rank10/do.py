@@ -44,7 +44,7 @@ def subir_a_imgbb(imagen_path):
     """Sube una imagen a ImgBB y retorna la URL de la imagen."""
     url = "https://api.imgbb.com/1/upload"
     with open(imagen_path, "rb") as archivo:
-        response = requests.post(url, data={"key": API_KEY_IMGBB}, files={"image": archivo})
+        response = requests.post(url, data={"key": API_KEY_IMGBB, "expiration": 3600}, files={"image": archivo})
     
     if response.status_code == 200:
         return response.json().get("data", {}).get("url")
