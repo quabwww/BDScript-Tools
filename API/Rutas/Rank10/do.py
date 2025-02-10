@@ -123,13 +123,13 @@ class Estruc(BaseModel):
     number_espace: int = 120
 
 
-app = FastAPI()
+router = APIRouter()
 
 SAVE_DIR = "static/images"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 # Montar carpeta estática
-app.mount("/static", StaticFiles(directory="static"), name="static")
+router.mount("/static", StaticFiles(directory="static"), name="static")
 
 async def eliminar_archivo(filepath: str, delay: int = 3600):
     """Elimina el archivo después de `delay` segundos (1 hora)."""
@@ -138,7 +138,7 @@ async def eliminar_archivo(filepath: str, delay: int = 3600):
         os.remove(filepath)
         print(f"Archivo eliminado: {filepath}")
 
-@app.post("/board10/")
+@router.post("/board10/")
 async def bck(body: Estruc):
     imagen = crear_imagen(body.id_emoji, 
                           body.url_fondo, 
@@ -158,7 +158,7 @@ async def bck(body: Estruc):
 
     # Crear una tarea para eliminar la imagen sin bloquear la respuesta
     loop = asyncio.get_running_loop()
-    loop.create_task(eliminar_archivo(filepath, delay=10))  # 1 hora
+    loop.create_task(eliminar_archivo(filepath, delay=3600))  # 1 hora
 
     return JSONResponse(content={"image_url": image_url})
 
