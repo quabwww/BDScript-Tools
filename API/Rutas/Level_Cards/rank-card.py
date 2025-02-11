@@ -35,7 +35,7 @@ def rank(avatar: str, username: str, level: str, req: str, xp: str, rank: str, c
     porcentaje = int(min(porcentaje, 100))
 
     # Aplicar el porcentaje a la barra
-    background.bar((15, 148), max_width=608, height=36, percentage=porcentaje, fill=f"{color_hex}", radius=17)
+    background.bar((15, 148), max_width=608, height=37, percentage=porcentaje, fill=f"{color_hex}", radius=17)
 
     # Linea abajo del texto op
     background.rectangle((150, 80 + 4), width=145, height=2, fill=color_hex)
