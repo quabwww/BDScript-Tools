@@ -43,4 +43,4 @@ def invite_info(token: str, guild_id: str, member_id: str):
 
 
 from main import app
-app.incloude_router(app)
+app.include_router(router)
