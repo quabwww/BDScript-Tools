@@ -6,7 +6,7 @@ router = APIRouter()
 
 
 
-@router.get("/api/invite_info/")
+@router.get("/invite_info/")
 def invite_info(token: str, guild_id: str, member_id: str):
     if token is None:
         raise HTTPException(status_code=404, detail="Error: Token no proporcionado")
