@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Query
 import requests
+from main import app
 
-app = APIRouter()
+router = APIRouter()
 
 BASE_URL = "https://discord.com/api/v10"
 
@@ -43,4 +44,7 @@ def obtener_miembros(
         after = data[-1]["user"]["id"]
 
     return {"miembros": miembros, "total": len(miembros)}
+
+
+app.include_router(router)
   
