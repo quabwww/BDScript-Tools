@@ -5,7 +5,7 @@ Rank Card:
 
 Codigo BDFD
 ```python
-$var[url;https://comunity-api-proyect-for-bdscript.onrender.com]
+$var[url;https://bdscript-tools.onrender.com]
 $var[av;$authorAvatar]
 $var[user;$username]
 $var[level;1]
