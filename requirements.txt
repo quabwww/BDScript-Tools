@@ -7,3 +7,4 @@ easy-pil
 httpx
 pillow
 pet-pet-gif
+youtube_search
