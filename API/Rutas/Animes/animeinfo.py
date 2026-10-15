@@ -59,5 +59,5 @@ def buscar_anime(
     except requests.RequestException as e:
         raise HTTPException(
             status_code=502,
-            detail=f"Error al consultar Kitsu API: {str(e)}"
+            detail=f"Error al consultar API: {str(e)}"
         )
