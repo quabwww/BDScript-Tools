@@ -7,7 +7,7 @@ router = APIRouter()
 KITSU_API = "https://kitsu.io/api/edge/anime"
 
 
-@router.get("/buscar")
+@router.get("/anime/busqueda")
 def buscar_anime(
     busqueda: str = Query(..., min_length=1),
     limite: int = Query(10, ge=1, le=20)
