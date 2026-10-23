@@ -47,7 +47,7 @@ class Game:
     hands: list[Hand]
     active_hand: int = 0
     status: Literal["active", "completed", "abandoned"] = "active"
-    result: str | None = None
+    result: dict | None = None
     settled: bool = False
     split_used: bool = False
 
