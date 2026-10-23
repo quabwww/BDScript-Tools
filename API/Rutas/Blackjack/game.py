@@ -1,218 +1,324 @@
-from fastapi import APIRouter, HTTPException
-from typing import List, Tuple, Dict
+from __future__ import annotations
+
 import random
+import uuid
+from dataclasses import dataclass, field
+from typing import Literal
 
-router = APIRouter()
+from fastapi import FastAPI, HTTPException, APIRouter
 
-# Definimos los valores de las cartas
-VALORES_CARTAS = {
-    '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10,
-    'J': 10, 'Q': 10, 'K': 10, 'A': 11
-}
+from pydantic import BaseModel, Field
 
-# Almacenamiento de las partidas en curso
-partidas: Dict[int, Dict] = {}
-partida_counter = 0
+app = APIRouter()
 
-def crear_baraja() -> List[Tuple[str, str]]:
-    """Crea una baraja de cartas."""
-    palos = ['Corazones', 'Diamantes', 'Tréboles', 'Picas']
-    valores = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
-    return [(valor, palo) for valor in valores for palo in palos]
+RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
+SUITS = ["♠", "♥", "♦", "♣"]
+VALUES = {str(n): n for n in range(2, 11)} | {"J": 10, "Q": 10, "K": 10, "A": 11}
 
-def barajar_baraja(baraja: List[Tuple[str, str]]):
-    """Baraja la baraja de cartas."""
-    random.shuffle(baraja)
 
-def repartir_carta(baraja: List[Tuple[str, str]]) -> Tuple[str, str]:
-    """Reparte una carta de la baraja."""
-    return baraja.pop()
+@dataclass
+class Hand:
+    cards: list[str] = field(default_factory=list)
+    bet: int = 0
+    stood: bool = False
+    doubled: bool = False
 
-def calcular_valor_mano(mano: List[Tuple[str, str]]) -> int:
-    """Calcula el valor total de una mano."""
-    valor = 0
-    num_ases = 0
-    for carta, _ in mano:
-        valor += VALORES_CARTAS[carta]
-        if carta == 'A':
-            num_ases += 1
-    
-    while valor > 21 and num_ases:
-        valor -= 10
-        num_ases -= 1
-    
-    return valor
+    def value(self) -> int:
+        total = sum(VALUES[card[:-1]] for card in self.cards)
+        aces = sum(card[:-1] == "A" for card in self.cards)
+        while total > 21 and aces:
+            total -= 10
+            aces -= 1
+        return total
 
-def mostrar_mano(mano: List[Tuple[str, str]]) -> str:
-    """Muestra las cartas y el valor de una mano."""
-    return ', '.join(f"{valor} de {palo}" for valor, palo in mano)
+    def is_blackjack(self) -> bool:
+        return len(self.cards) == 2 and self.value() == 21
 
-@router.get("/blackjack/nuevo/")
-def nueva_partida():
-    """Inicia una nueva partida de Blackjack."""
-    global partida_counter
-    partida_counter += 1  # Incrementar el contador para el ID de la partida
-    partida_id = partida_counter
+    def is_bust(self) -> bool:
+        return self.value() > 21
 
-    # Crear y barajar la baraja
-    baraja = crear_baraja()
-    barajar_baraja(baraja)
 
-    # Repartir las cartas iniciales
-    mano_jugador = [repartir_carta(baraja), repartir_carta(baraja)]
-    mano_crupier = [repartir_carta(baraja), repartir_carta(baraja)]
+@dataclass
+class Game:
+    game_id: str
+    balance: int
+    deck: list[str]
+    dealer: list[str]
+    hands: list[Hand]
+    active_hand: int = 0
+    status: Literal["active", "completed", "abandoned"] = "active"
+    result: str | None = None
+    settled: bool = False
+    split_used: bool = False
 
-    partidas[partida_id] = {
-        "baraja": baraja,
-        "mano_jugador": mano_jugador,
-        "mano_crupier": mano_crupier,
-        "finalizada": False
+
+class NewGameRequest(BaseModel):
+    bet: int = Field(default=100, ge=1, le=1_000_000)
+    starting_balance: int = Field(default=1000, ge=1, le=10_000_000)
+
+
+games: dict[str, Game] = {}
+
+
+def new_deck() -> list[str]:
+    deck = [f"{rank}{suit}" for rank in RANKS for suit in SUITS]
+    random.shuffle(deck)
+    return deck
+
+
+def draw(game: Game) -> str:
+    if not game.deck:
+        game.deck = new_deck()
+    return game.deck.pop()
+
+
+def card_rank(card: str) -> str:
+    return card[:-1]
+
+
+def hand_value(cards: list[str]) -> int:
+    total = sum(VALUES[card_rank(card)] for card in cards)
+    aces = sum(card_rank(card) == "A" for card in cards)
+    while total > 21 and aces:
+        total -= 10
+        aces -= 1
+    return total
+
+
+def get_game(game_id: str) -> Game:
+    game = games.get(game_id)
+    if game is None:
+        raise HTTPException(status_code=404, detail="No existe una partida con ese game_id.")
+    return game
+
+
+def require_active(game: Game) -> None:
+    if game.status != "active":
+        raise HTTPException(status_code=409, detail=f"La partida ya no está activa (estado: {game.status}).")
+
+
+def public_state(game: Game, reveal_dealer: bool | None = None) -> dict:
+    if reveal_dealer is None:
+        reveal_dealer = game.status != "active"
+
+    dealer_cards = game.dealer if reveal_dealer else game.dealer[:1]
+    state = {
+        "game_id": game.game_id,
+        "status": game.status,
+        "balance": game.balance,
+        "active_hand": game.active_hand if game.status == "active" else None,
+        "dealer": {
+            "cards": dealer_cards,
+            "value": hand_value(dealer_cards) if reveal_dealer else None,
+            "hidden_cards": 0 if reveal_dealer else max(0, len(game.dealer) - 1),
+        },
+        "hands": [
+            {
+                "index": i,
+                "cards": hand.cards,
+                "value": hand.value(),
+                "bet": hand.bet,
+                "stood": hand.stood,
+                "busted": hand.is_bust(),
+                "blackjack": hand.is_blackjack(),
+                "doubled": hand.doubled,
+            }
+            for i, hand in enumerate(game.hands)
+        ],
+        "result": game.result,
+        "available_actions": [],
     }
+    if game.status == "active":
+        hand = game.hands[game.active_hand]
+        actions = []
+        if not hand.stood and not hand.is_bust():
+            actions.extend(["hit", "stand"])
+            if len(hand.cards) == 2 and game.balance >= hand.bet:
+                actions.append("double")
+            if (
+                len(hand.cards) == 2
+                and card_rank(hand.cards[0]) == card_rank(hand.cards[1])
+                and not game.split_used
+                and len(game.hands) == 1
+                and game.balance >= hand.bet
+            ):
+                actions.append("split")
+        state["available_actions"] = actions
+    return state
 
-    # Calcular valores
-    valor_jugador = calcular_valor_mano(mano_jugador)
-    valor_crupier = calcular_valor_mano([mano_crupier[0]])
 
-    if valor_jugador == 21:
-        return {
-            "partida_id": partida_id,
-            "resultado_inicial": "¡Felicidades! Blackjack, el jugador gana.",
-            "acciones_disponibles": [],
-            "valor_jugador": valor_jugador,
-            "valor_crupier": valor_crupier,
-            "mano_jugador": mostrar_mano(mano_jugador),
-            "mano_crupier": f"{mano_crupier[0][0]} de {mano_crupier[0][1]} y una carta oculta",
-            "cartas_restantes": len(baraja)
-        }
+def settle(game: Game) -> None:
+    """Resolve dealer play and pay all hands exactly once."""
+    if game.settled:
+        return
 
-    # Lista de acciones disponibles
-    acciones_disponibles = ["pedir", "plantarse"]
+    live_hands = [hand for hand in game.hands if not hand.is_bust()]
+    if live_hands:
+        while hand_value(game.dealer) < 17:
+            game.dealer.append(draw(game))
 
-    se_puede_split = mano_jugador[0][0] == mano_jugador[1][0]
-    if se_puede_split:
-        acciones_disponibles.append("split")
+    dealer_total = hand_value(game.dealer)
+    dealer_bust = dealer_total > 21
+    outcomes = []
 
-    se_puede_double_down = len(mano_jugador) == 2
-    if se_puede_double_down:
-        acciones_disponibles.append("doblar")
-
-    return {
-        "partida_id": partida_id,
-        "resultado_inicial": None,
-        "acciones_disponibles": acciones_disponibles,
-        "valor_jugador": valor_jugador,
-        "valor_crupier": valor_crupier,
-        "mano_jugador": mostrar_mano(mano_jugador),
-        "mano_crupier": f"{mano_crupier[0][0]} de {mano_crupier[0][1]} y una carta oculta",
-        "cartas_restantes": len(baraja)
-    }
-
-@router.get("/blackjack_action/{partida_id}/")
-def accion_partida(partida_id: int, accion: str, mano_index: int = 0):
-    """Realiza una acción en la partida (pedir, plantarse, doblar, split)."""
-    partida = partidas.get(partida_id)
-    if not partida:
-        raise HTTPException(status_code=404, detail="Partida no encontrada")
-
-    if partida["finalizada"]:
-        raise HTTPException(status_code=400, detail="La partida ya ha finalizado")
-
-    opciones_disponibles = ["pedir", "plantarse", "doblar", "split"]
-
-    if accion not in opciones_disponibles:
-        raise HTTPException(status_code=400, detail="Acción no válida")
-
-    # Manejo de la acción "split"
-    if accion == "split":
-        mano_jugador = partida["mano_jugador"]
-        if len(mano_jugador) == 2 and mano_jugador[0][0] == mano_jugador[1][0]:
-            nueva_mano = [mano_jugador[1]]  # Segunda mano con la segunda carta
-            partida["mano_jugador"] = [[mano_jugador[0]], nueva_mano]  # Actualizar las manos
-            partida["mano_jugador"][0].append(repartir_carta(partida["baraja"]))  # Repartir carta a la mano original
-            partida["mano_jugador"][1].append(repartir_carta(partida["baraja"]))  # Repartir carta a la nueva mano
-            return {
-                "mensaje": "¡Has dividido tu mano!",
-                "mano_jugador": [mostrar_mano(mano) for mano in partida["mano_jugador"]],
-                "cartas_restantes": len(partida["baraja"]),
-                "acciones_disponibles": ["pedir", "plantarse"]
-            }
+    for index, hand in enumerate(game.hands):
+        player_total = hand.value()
+        if hand.is_bust():
+            outcome = "loss"
+        elif hand.is_blackjack() and len(game.hands) == 1:
+            # Natural blackjack pays 3:2 profit (stake already deducted).
+            game.balance += hand.bet + (hand.bet * 3 // 2)
+            outcome = "blackjack"
+        elif dealer_bust or player_total > dealer_total:
+            game.balance += hand.bet * 2
+            outcome = "win"
+        elif player_total == dealer_total:
+            game.balance += hand.bet
+            outcome = "push"
         else:
-            raise HTTPException(status_code=400, detail="No se puede dividir esta mano")
+            outcome = "loss"
+        outcomes.append({"hand": index, "outcome": outcome, "player_value": player_total})
 
-    # Si se selecciona "pedir"
-    if accion == "pedir":
-        mano_actual = partida["mano_jugador"][mano_index]
-        mano_actual.append(repartir_carta(partida["baraja"]))
-        valor_jugador = calcular_valor_mano(mano_actual)
-        if valor_jugador > 21:
-            partida["finalizada"] = True
-            return {
-                "mensaje": "¡El jugador se pasa! El crupier gana.",
-                "mano_jugador": mostrar_mano(mano_actual),
-                "valor_jugador": valor_jugador,
-                "mano_crupier": mostrar_mano(partida["mano_crupier"]),
-                "valor_crupier": calcular_valor_mano(partida["mano_crupier"]),
-                "cartas_restantes": len(partida["baraja"]),
-                "ganador": "crupier"
-            }
-        return {
-            "mensaje": "Carta repartida.",
-            "mano_jugador": mostrar_mano(mano_actual),
-            "valor_jugador": valor_jugador,
-            "cartas_restantes": len(partida["baraja"]),
-            "ganador": None
-        }
+    game.result = {
+        "hands": outcomes,
+        "dealer_value": dealer_total,
+        "dealer_bust": dealer_bust,
+    }  # type: ignore[assignment]
+    game.status = "completed"
+    game.settled = True
 
-    # Si se selecciona "doblar"
-    if accion == "doblar":
-        mano_actual = partida["mano_jugador"][mano_index]
-        mano_actual.append(repartir_carta(partida["baraja"]))
-        valor_jugador = calcular_valor_mano(mano_actual)
-        if valor_jugador > 21:
-            partida["finalizada"] = True
-            return {
-                "mensaje": "¡El jugador se pasa al doblar! El crupier gana.",
-                "mano_jugador": mostrar_mano(mano_actual),
-                "valor_jugador": valor_jugador,
-                "mano_crupier": mostrar_mano(partida["mano_crupier"]),
-                "valor_crupier": calcular_valor_mano(partida["mano_crupier"]),
-                "cartas_restantes": len(partida["baraja"]),
-                "ganador": "crupier"
-            }
-        return {
-            "mensaje": "El jugador ha doblado.",
-            "mano_jugador": mostrar_mano(mano_actual),
-            "valor_jugador": valor_jugador,
-            "cartas_restantes": len(partida["baraja"]),
-            "ganador": None
-        }
 
-    # Si se selecciona "plantarse"
-    if accion == "plantarse":
-        valor_jugador = calcular_valor_mano(partida["mano_jugador"][mano_index])
-        valor_crupier = calcular_valor_mano(partida["mano_crupier"])
-
-        # El crupier sigue pidiendo hasta alcanzar 17 o más
-        while valor_crupier < 17:
-            partida["mano_crupier"].append(repartir_carta(partida["baraja"]))
-            valor_crupier = calcular_valor_mano(partida["mano_crupier"])
-
-        if valor_crupier > 21 or valor_jugador > valor_crupier:
-            ganador = "jugador"
-        elif valor_jugador < valor_crupier:
-            ganador = "crupier"
+def advance_hand(game: Game) -> None:
+    """Move to the next hand or settle when every hand is finished."""
+    while game.active_hand < len(game.hands):
+        hand = game.hands[game.active_hand]
+        if hand.stood or hand.is_bust():
+            game.active_hand += 1
         else:
-            ganador = "empate"
+            break
 
-        partida["finalizada"] = True
-        return {
-            "mensaje": "El jugador se planta.",
-            "valor_jugador": valor_jugador,
-            "mano_jugador": mostrar_mano(partida["mano_jugador"]),
-            "valor_crupier": valor_crupier,
-            "mano_crupier": mostrar_mano(partida["mano_crupier"]),
-            "cartas_restantes": len(partida["baraja"]),
-            "ganador": ganador
-        }
+    if game.active_hand >= len(game.hands):
+        settle(game)
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
+@app.post("/games", status_code=201)
+def create_game(payload: NewGameRequest):
+    if payload.bet > payload.starting_balance:
+        raise HTTPException(status_code=422, detail="La apuesta no puede superar el saldo inicial.")
+
+    game = Game(
+        game_id=str(uuid.uuid4()),
+        balance=payload.starting_balance - payload.bet,
+        deck=new_deck(),
+        dealer=[],
+        hands=[Hand(bet=payload.bet)],
+    )
+    hand = game.hands[0]
+    hand.cards.extend([draw(game), draw(game)])
+    game.dealer.extend([draw(game), draw(game)])
+    games[game.game_id] = game
+
+    player_bj = hand.is_blackjack()
+    dealer_bj = hand_value(game.dealer) == 21 and len(game.dealer) == 2
+    if player_bj or dealer_bj:
+        if player_bj and dealer_bj:
+            game.balance += payload.bet
+            game.status = "completed"
+            game.result = {"hands": [{"hand": 0, "outcome": "push", "player_value": 21}], "dealer_value": 21}
+            game.settled = True
+        elif player_bj:
+            game.balance += payload.bet + (payload.bet * 3 // 2)
+            game.status = "completed"
+            game.result = {"hands": [{"hand": 0, "outcome": "blackjack", "player_value": 21}], "dealer_value": hand_value(game.dealer)}
+            game.settled = True
+        else:
+            game.status = "completed"
+            game.result = {"hands": [{"hand": 0, "outcome": "loss", "player_value": hand.value()}], "dealer_value": 21}
+            game.settled = True
+
+    return public_state(game)
+
+
+@app.get("/games/{game_id}")
+def get_game_state(game_id: str):
+    return public_state(get_game(game_id))
+
+
+@app.post("/games/{game_id}/hit")
+def hit(game_id: str):
+    game = get_game(game_id)
+    require_active(game)
+    hand = game.hands[game.active_hand]
+    hand.cards.append(draw(game))
+    if hand.is_bust():
+        hand.stood = True
+        advance_hand(game)
+    return public_state(game)
+
+
+@app.post("/games/{game_id}/stand")
+def stand(game_id: str):
+    game = get_game(game_id)
+    require_active(game)
+    game.hands[game.active_hand].stood = True
+    advance_hand(game)
+    return public_state(game)
+
+
+@app.post("/games/{game_id}/double")
+def double_down(game_id: str):
+    game = get_game(game_id)
+    require_active(game)
+    hand = game.hands[game.active_hand]
+    if len(hand.cards) != 2:
+        raise HTTPException(status_code=409, detail="Solo puedes doblar con las dos primeras cartas.")
+    if game.balance < hand.bet:
+        raise HTTPException(status_code=409, detail="Saldo insuficiente para doblar.")
+    game.balance -= hand.bet
+    hand.bet *= 2
+    hand.doubled = True
+    hand.cards.append(draw(game))
+    hand.stood = True
+    advance_hand(game)
+    return public_state(game)
+
+
+@app.post("/games/{game_id}/split")
+def split(game_id: str):
+    game = get_game(game_id)
+    require_active(game)
+    hand = game.hands[game.active_hand]
+
+    if game.split_used or len(game.hands) != 1:
+        raise HTTPException(status_code=409, detail="Esta versión permite dividir una sola pareja por partida.")
+    if len(hand.cards) != 2 or card_rank(hand.cards[0]) != card_rank(hand.cards[1]):
+        raise HTTPException(status_code=409, detail="Necesitas dos cartas del mismo valor para dividir.")
+    if game.balance < hand.bet:
+        raise HTTPException(status_code=409, detail="Saldo insuficiente para dividir.")
+
+    game.balance -= hand.bet
+    second_card = hand.cards.pop()
+    second_hand = Hand(cards=[second_card], bet=hand.bet)
+    hand.cards.append(draw(game))
+    second_hand.cards.append(draw(game))
+    game.hands.append(second_hand)
+    game.split_used = True
+    game.active_hand = 0
+    return public_state(game)
+
+
+@app.post("/games/{game_id}/finish")
+def finish_game(game_id: str):
+    """Abandon the current game; the already-placed bet is not refunded."""
+    game = get_game(game_id)
+    require_active(game)
+    game.status = "abandoned"
+    game.result = {"outcome": "abandoned", "message": "Partida finalizada por el cliente; la apuesta no se devuelve."}
+    return public_state(game, reveal_dealer=True)
 
 
