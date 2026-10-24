@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, APIRouter
 from pydantic import BaseModel, Field
 
 
-app = APIRouter()
+router = APIRouter()
 
 
 # ============================================================
@@ -349,7 +349,7 @@ def advance_hand(game: Game) -> None:
 # GET /health
 # ============================================================
 
-@app.get("/health")
+@router.get("/health")
 def health():
     return {"status": "ok"}
 
@@ -430,7 +430,7 @@ def create_game(payload: NewGameRequest):
 # GET /games/{game_id}
 # ============================================================
 
-@app.get("/games/{game_id}")
+@router.get("/games/{game_id}")
 def get_game_state(game_id: str):
     return public_state(get_game(game_id))
 
@@ -440,7 +440,7 @@ def get_game_state(game_id: str):
 # POST /games/{game_id}/hit
 # ============================================================
 
-@app.post("/games/{game_id}/hit")
+@router.post("/games/{game_id}/hit")
 def hit(game_id: str):
     game = get_game(game_id)
     require_active(game)
@@ -460,7 +460,7 @@ def hit(game_id: str):
 # POST /games/{game_id}/stand
 # ============================================================
 
-@app.post("/games/{game_id}/stand")
+@router.post("/games/{game_id}/stand")
 def stand(game_id: str):
     game = get_game(game_id)
     require_active(game)
@@ -477,7 +477,7 @@ def stand(game_id: str):
 # POST /games/{game_id}/double
 # ============================================================
 
-@app.post("/games/{game_id}/double")
+@router.post("/games/{game_id}/double")
 def double_down(game_id: str):
     game = get_game(game_id)
     require_active(game)
@@ -513,7 +513,7 @@ def double_down(game_id: str):
 # POST /games/{game_id}/split
 # ============================================================
 
-@app.post("/games/{game_id}/split")
+@router.post("/games/{game_id}/split")
 def split(game_id: str):
     game = get_game(game_id)
     require_active(game)
@@ -572,7 +572,7 @@ def split(game_id: str):
 # POST /games/{game_id}/finish
 # ============================================================
 
-@app.post("/games/{game_id}/finish")
+@router.post("/games/{game_id}/finish")
 def finish_game(game_id: str):
     game = get_game(game_id)
     require_active(game)
@@ -593,3 +593,5 @@ def finish_game(game_id: str):
     )
 
 
+from main import app
+app.include_router(router)
