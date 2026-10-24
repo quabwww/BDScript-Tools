@@ -359,7 +359,7 @@ def health():
 # POST /games
 # ============================================================
 
-@app.post("/games", status_code=201)
+@router.post("/games", status_code=201)
 def create_game(payload: NewGameRequest):
     if payload.bet > payload.starting_balance:
         raise HTTPException(
