@@ -204,6 +204,7 @@ def public_state(
         "game_id": game.game_id,
         "status": game.status,
         "balance": game.balance,
+        "cards_remaining": len(game.deck),
         "active_hand": (
             game.active_hand
             if game.status == "active"
