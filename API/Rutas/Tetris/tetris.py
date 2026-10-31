@@ -354,6 +354,12 @@ class JuegoTetris:
             if "BAJAR" in movimientos:
                 self.y += 1
 
+                # Verificar si después de bajar puede seguir bajando
+                if self.colisiona(
+                    self.x, self.y + 1, self.rotacion
+                ):
+                    self.fijar_pieza()
+
             else:
                 self.fijar_pieza()
 
