@@ -57,7 +57,7 @@ class JuegoTetris:
 
         self.pieza_actual = None
 
-        # PIEZA SIGUIENTE
+        # Pieza siguiente
         self.pieza_siguiente = random.choice(
             list(self.piezas.keys())
         )
@@ -118,13 +118,14 @@ class JuegoTetris:
         ]
 
         formas = self.piezas[tipo]
-
         bloques = formas[rotacion % len(formas)]
 
         for dx, dy in bloques:
             matriz[dy][dx] = tipo
 
-        return matriz
+        return '\n'.join(
+            ''.join(fila) for fila in matriz
+        )
 
     # ======================================
     # DETECTAR COLISIONES
@@ -543,5 +544,4 @@ async def obtener_estado(id_juego: int):
         )
 
     return juegos[id_juego].obtener_estado_juego()
-
 
