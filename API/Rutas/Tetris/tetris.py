@@ -120,8 +120,26 @@ class JuegoTetris:
         formas = self.piezas[tipo]
         bloques = formas[rotacion % len(formas)]
 
+        # Obtener dimensiones de la pieza
+        min_x = min(dx for dx, dy in bloques)
+        max_x = max(dx for dx, dy in bloques)
+        min_y = min(dy for dx, dy in bloques)
+        max_y = max(dy for dx, dy in bloques)
+
+        ancho_pieza = max_x - min_x + 1
+        alto_pieza = max_y - min_y + 1
+
+    # Calcular posición central
+        desplazamiento_x = (4 - ancho_pieza) // 2
+        desplazamiento_y = (4 - alto_pieza) // 2
+
+        # Dibujar pieza centrada
         for dx, dy in bloques:
-            matriz[dy][dx] = tipo
+
+            x = dx - min_x + desplazamiento_x
+            y = dy - min_y + desplazamiento_y
+
+            matriz[y][x] = tipo
 
         return '\n'.join(
             ''.join(fila) for fila in matriz
@@ -544,4 +562,3 @@ async def obtener_estado(id_juego: int):
         )
 
     return juegos[id_juego].obtener_estado_juego()
-
