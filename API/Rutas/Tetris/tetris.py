@@ -9,25 +9,18 @@ import random
 
 class JuegoTetris:
 
-    MOVIMIENTOS = [
-        "IZQUIERDA",
-        "DERECHA",
-        "ROTAR",
-        "BAJAR",
-        "CAIDA"
-    ]
-
     def __init__(self, id_juego: int, ancho: int = 8, alto: int = 20):
         self.id_juego = id_juego
         self.ancho = ancho
         self.alto = alto
 
+        # Tablero interno: piezas fijas
         self.tablero = [
             ['-' for _ in range(ancho)]
             for _ in range(alto)
         ]
 
-        # Formas y rotaciones de las piezas
+        # Formas de las piezas
         self.piezas = {
             "I": [
                 [(0, 0), (1, 0), (2, 0), (3, 0)],
@@ -66,7 +59,7 @@ class JuegoTetris:
 
         self.pieza_actual = None
         self.x = 2
-        self.y = 0
+        self.y = 1
         self.rotacion = 0
 
         self.puntuacion = 0
@@ -77,7 +70,7 @@ class JuegoTetris:
         self.generar_pieza()
 
     # ======================================
-    # GENERAR NUEVA PIEZA
+    # GENERAR PIEZA
     # ======================================
 
     def generar_pieza(self):
@@ -87,14 +80,14 @@ class JuegoTetris:
 
         self.rotacion = 0
         self.x = 2
-        self.y = 0
+        self.y = 1
 
-        # Si la nueva pieza no puede aparecer, termina
+        # Si no puede aparecer, termina el juego
         if self.colisiona(self.x, self.y, self.rotacion):
             self.juego_terminado = True
 
     # ======================================
-    # OBTENER BLOQUES DE LA PIEZA
+    # OBTENER BLOQUES
     # ======================================
 
     def obtener_bloques(self, rotacion=None):
@@ -105,7 +98,7 @@ class JuegoTetris:
         return formas[rotacion % len(formas)]
 
     # ======================================
-    # COMPROBAR COLISIONES
+    # DETECTAR COLISIONES
     # ======================================
 
     def colisiona(self, x, y, rotacion):
@@ -117,43 +110,33 @@ class JuegoTetris:
             nx = x + dx
             ny = y + dy
 
-            # Bordes laterales y base
-            if nx < 0 or nx >= self.ancho:
+            # Bordes izquierdo y derecho
+            if nx < 1 or nx >= self.ancho - 1:
                 return True
 
-            if ny >= self.alto:
+            # Borde inferior y superior
+            if ny < 1 or ny >= self.alto - 1:
                 return True
 
-            # Colisión con bloques fijados
-            if ny >= 0 and self.tablero[ny][nx] != '-':
+            # Colisión con piezas fijadas
+            if self.tablero[ny][nx] != '-':
                 return True
 
         return False
 
     # ======================================
-    # FIJAR PIEZA EN EL TABLERO
+    # FIJAR PIEZA
     # ======================================
 
     def fijar_pieza(self):
-        bloques = self.obtener_bloques()
-
-        # Si algún bloque queda fuera por arriba
-        for dx, dy in bloques:
-            if self.y + dy < 0:
-                self.juego_terminado = True
-                return
-
-        # Fijar la pieza
-        for dx, dy in bloques:
+        for dx, dy in self.obtener_bloques():
             nx = self.x + dx
             ny = self.y + dy
 
-            self.tablero[ny][nx] = self.pieza_actual
+            if 1 <= ny < self.alto - 1:
+                self.tablero[ny][nx] = self.pieza_actual
 
-        # Eliminar líneas completas
         self.eliminar_lineas()
-
-        # Generar la siguiente pieza
         self.generar_pieza()
 
     # ======================================
@@ -161,20 +144,32 @@ class JuegoTetris:
     # ======================================
 
     def eliminar_lineas(self):
-        tablero_nuevo = [
-            fila for fila in self.tablero
-            if '-' in fila
-        ]
+        filas_completas = []
 
-        eliminadas = self.alto - len(tablero_nuevo)
+        # Solo revisar el espacio interior
+        for y in range(1, self.alto - 1):
+            if all(
+                self.tablero[y][x] != '-'
+                for x in range(1, self.ancho - 1)
+            ):
+                filas_completas.append(y)
 
-        for _ in range(eliminadas):
-            tablero_nuevo.insert(
-                0, ['-' for _ in range(self.ancho)]
+        cantidad = len(filas_completas)
+
+        if cantidad == 0:
+            return
+
+        # Eliminar filas completas
+        for y in reversed(filas_completas):
+            del self.tablero[y]
+
+        # Agregar filas vacías debajo del borde superior
+        for _ in range(cantidad):
+            self.tablero.insert(
+                1, ['-' for _ in range(self.ancho)]
             )
 
-        self.tablero = tablero_nuevo
-        self.lineas += eliminadas
+        self.lineas += cantidad
 
         puntos = {
             1: 100,
@@ -183,14 +178,58 @@ class JuegoTetris:
             4: 800
         }
 
-        self.puntuacion += (
-            puntos.get(eliminadas, 0) * self.nivel
-        )
+        self.puntuacion += puntos.get(
+            cantidad, 0
+        ) * self.nivel
 
         self.nivel = (self.lineas // 10) + 1
 
     # ======================================
-    # MOVIMIENTOS DE LA PIEZA
+    # MOVIMIENTOS DISPONIBLES
+    # ======================================
+
+    def obtener_movimientos_disponibles(self):
+        movimientos = []
+
+        if self.juego_terminado:
+            return movimientos
+
+        # Izquierda
+        if not self.colisiona(
+            self.x - 1, self.y, self.rotacion
+        ):
+            movimientos.append("IZQUIERDA")
+
+        # Derecha
+        if not self.colisiona(
+            self.x + 1, self.y, self.rotacion
+        ):
+            movimientos.append("DERECHA")
+
+        # Rotación
+        formas = self.piezas[self.pieza_actual]
+        nueva_rotacion = (
+            self.rotacion + 1
+        ) % len(formas)
+
+        if not self.colisiona(
+            self.x, self.y, nueva_rotacion
+        ):
+            movimientos.append("ROTAR")
+
+        # Bajar
+        puede_bajar = not self.colisiona(
+            self.x, self.y + 1, self.rotacion
+        )
+
+        if puede_bajar:
+            movimientos.append("BAJAR")
+            movimientos.append("CAIDA")
+
+        return movimientos
+
+    # ======================================
+    # MOVER PIEZA
     # ======================================
 
     def mover(self, direccion: str) -> Dict:
@@ -199,45 +238,37 @@ class JuegoTetris:
         if self.juego_terminado:
             return self.obtener_estado_juego()
 
-        if direccion not in self.MOVIMIENTOS:
+        movimientos = self.obtener_movimientos_disponibles()
+
+        if direccion not in [
+            "IZQUIERDA", "DERECHA", "ROTAR", "BAJAR", "CAIDA"
+        ]:
             return {
                 "estado_juego": "false",
                 "mensaje": "Movimiento no válido",
-                "movimientos_disponibles": self.MOVIMIENTOS
+                "movimientos_disponibles": movimientos
             }
 
-        # Mover a la izquierda
+        # Izquierda
         if direccion == "IZQUIERDA":
-            if not self.colisiona(
-                self.x - 1, self.y, self.rotacion
-            ):
+            if "IZQUIERDA" in movimientos:
                 self.x -= 1
 
-        # Mover a la derecha
+        # Derecha
         elif direccion == "DERECHA":
-            if not self.colisiona(
-                self.x + 1, self.y, self.rotacion
-            ):
+            if "DERECHA" in movimientos:
                 self.x += 1
 
-        # Rotar pieza
+        # Rotar
         elif direccion == "ROTAR":
-            formas = self.piezas[self.pieza_actual]
-
-            nueva_rotacion = (
-                self.rotacion + 1
-            ) % len(formas)
-
-            if not self.colisiona(
-                self.x, self.y, nueva_rotacion
-            ):
-                self.rotacion = nueva_rotacion
+            if "ROTAR" in movimientos:
+                self.rotacion = (
+                    self.rotacion + 1
+                ) % len(self.piezas[self.pieza_actual])
 
         # Bajar una posición
         elif direccion == "BAJAR":
-            if not self.colisiona(
-                self.x, self.y + 1, self.rotacion
-            ):
+            if "BAJAR" in movimientos:
                 self.y += 1
             else:
                 self.fijar_pieza()
@@ -271,20 +302,41 @@ class JuegoTetris:
         return self.obtener_estado_juego()
 
     # ======================================
-    # CREAR TABLERO VISIBLE
+    # CREAR TABLERO CON BORDES
     # ======================================
 
     def crear_tablero(self) -> List[List[str]]:
         tablero = [
-            fila[:] for fila in self.tablero
+            ['-' for _ in range(self.ancho)]
+            for _ in range(self.alto)
         ]
 
+        # Bordes izquierdo y derecho
+        for y in range(self.alto):
+            tablero[y][0] = '|'
+            tablero[y][self.ancho - 1] = '|'
+
+        # Bordes superior e inferior
+        for x in range(self.ancho):
+            tablero[0][x] = '#'
+            tablero[self.alto - 1][x] = '#'
+
+        # Dibujar piezas fijas
+        for y in range(1, self.alto - 1):
+            for x in range(1, self.ancho - 1):
+                if self.tablero[y][x] != '-':
+                    tablero[y][x] = self.tablero[y][x]
+
+        # Dibujar pieza actual
         if not self.juego_terminado:
             for dx, dy in self.obtener_bloques():
                 nx = self.x + dx
                 ny = self.y + dy
 
-                if 0 <= ny < self.alto:
+                if (
+                    1 <= nx < self.ancho - 1
+                    and 1 <= ny < self.alto - 1
+                ):
                     tablero[ny][nx] = self.pieza_actual
 
         return tablero
@@ -305,7 +357,8 @@ class JuegoTetris:
             "lineas": self.lineas,
             "nivel": self.nivel,
             "pieza_actual": self.pieza_actual,
-            "movimientos_disponibles": self.MOVIMIENTOS,
+            "movimientos_disponibles":
+                self.obtener_movimientos_disponibles(),
             "juego": '\n'.join(
                 ''.join(fila) for fila in tablero
             )
@@ -338,7 +391,6 @@ async def iniciar_juego():
     id_juego = contador_juegos
 
     juegos[id_juego] = JuegoTetris(id_juego)
-
     contador_juegos += 1
 
     return {
@@ -363,7 +415,7 @@ async def mover(id_juego: int, direccion: str):
 
 
 # ======================================
-# AVANZAR CAIDA AUTOMATICA
+# CAIDA AUTOMATICA
 # ======================================
 
 @router.get("/avanzar/{id_juego}/")
