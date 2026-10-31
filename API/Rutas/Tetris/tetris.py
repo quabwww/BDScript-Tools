@@ -1,654 +1,547 @@
+from fastapi import FastAPI, APIRouter, HTTPException
 import random
-import uuid
-from copy import deepcopy
-from fastapi import APIRouter, FastAPI, HTTPException, Query
 
-router = APIRouter(prefix="/tetris", tags=["Tetris"])
-
-# =========================================================
-# CONFIGURACIÓN
-# =========================================================
-
-COLUMNAS = 8
-FILAS = 20
-
-# Área jugable: columnas 1 a 6, filas 1 a 18
-COL_MIN = 1
-COL_MAX = 6
-FILA_MIN = 1
-FILA_MAX = 18
-
-VACIO = "-"
-
-# =========================================================
-# PIEZAS DE TETRIS
-# Cada pieza tiene rotaciones dentro de una matriz 4x4
-# =========================================================
-
-PIEZAS = {
-    "I": [
-        [
-            "----",
-            "IIII",
-            "----",
-            "----",
-        ],
-        [
-            "--I-",
-            "--I-",
-            "--I-",
-            "--I-",
-        ],
-        [
-            "----",
-            "----",
-            "IIII",
-            "----",
-        ],
-        [
-            "-I--",
-            "-I--",
-            "-I--",
-            "-I--",
-        ],
-    ],
-
-    "O": [
-        [
-            "----",
-            "-OO-",
-            "-OO-",
-            "----",
-        ],
-        [
-            "----",
-            "-OO-",
-            "-OO-",
-            "----",
-        ],
-        [
-            "----",
-            "-OO-",
-            "-OO-",
-            "----",
-        ],
-        [
-            "----",
-            "-OO-",
-            "-OO-",
-            "----",
-        ],
-    ],
-
-    "T": [
-        [
-            "----",
-            "TTT-",
-            "-T--",
-            "----",
-        ],
-        [
-            "-T--",
-            "TT--",
-            "-T--",
-            "----",
-        ],
-        [
-            "-T--",
-            "TTT-",
-            "----",
-            "----",
-        ],
-        [
-            "-T--",
-            "-TT-",
-            "-T--",
-            "----",
-        ],
-    ],
-
-    "S": [
-        [
-            "----",
-            "-SS-",
-            "SS--",
-            "----",
-        ],
-        [
-            "-S--",
-            "-SS-",
-            "--S-",
-            "----",
-        ],
-        [
-            "----",
-            "-SS-",
-            "SS--",
-            "----",
-        ],
-        [
-            "-S--",
-            "-SS-",
-            "--S-",
-            "----",
-        ],
-    ],
-
-    "Z": [
-        [
-            "----",
-            "ZZ--",
-            "-ZZ-",
-            "----",
-        ],
-        [
-            "--Z-",
-            "-ZZ-",
-            "-Z--",
-            "----",
-        ],
-        [
-            "----",
-            "ZZ--",
-            "-ZZ-",
-            "----",
-        ],
-        [
-            "--Z-",
-            "-ZZ-",
-            "-Z--",
-            "----",
-        ],
-    ],
-
-    "J": [
-        [
-            "----",
-            "JJJ-",
-            "--J-",
-            "----",
-        ],
-        [
-            "-J--",
-            "-J--",
-            "JJ--",
-            "----",
-        ],
-        [
-            "J---",
-            "JJJ-",
-            "----",
-            "----",
-        ],
-        [
-            "-JJ-",
-            "-J--",
-            "-J--",
-            "----",
-        ],
-    ],
-
-    "L": [
-        [
-            "----",
-            "LLL-",
-            "L---",
-            "----",
-        ],
-        [
-            "LL--",
-            "-L--",
-            "-L--",
-            "----",
-        ],
-        [
-            "--L-",
-            "LLL-",
-            "----",
-            "----",
-        ],
-        [
-            "-L--",
-            "-L--",
-            "-LL-",
-            "----",
-        ],
-    ],
-}
-
-PUNTOS_LINEAS = {
-    1: 100,
-    2: 300,
-    3: 500,
-    4: 800,
-}
-
-
-# =========================================================
-# FUNCIONES AUXILIARES
-# =========================================================
-
-def crear_matriz_pieza(tipo, rotacion=0):
-    """Devuelve la pieza como matriz 4x4."""
-    forma = PIEZAS[tipo][rotacion % 4]
-    return [list(fila) for fila in forma]
-
-
-def obtener_celdas_pieza(tipo, rotacion, x, y):
-    """Obtiene las coordenadas ocupadas de una pieza."""
-    matriz = crear_matriz_pieza(tipo, rotacion)
-    celdas = []
-
-    for fila in range(4):
-        for columna in range(4):
-            if matriz[fila][columna] != VACIO:
-                celdas.append((x + columna, y + fila))
-
-    return celdas
-
-
-# =========================================================
-# CLASE DEL JUEGO
-# =========================================================
+# ==========================================
+# JUEGO TETRIS
+# ==========================================
 
 class JuegoTetris:
 
-    def __init__(self):
+    def __init__(self, id_juego: int, ancho: int = 8, alto: int = 20):
+        self.id_juego = id_juego
+        self.ancho = ancho
+        self.alto = alto
+
+        # Tablero interno
         self.tablero = [
-            [VACIO for _ in range(COLUMNAS)]
-            for _ in range(FILAS)
+            ['-' for _ in range(ancho)]
+            for _ in range(alto)
         ]
 
-        self.puntaje = 0
-        self.nivel = 1
-        self.lineas = 0
-        self.game_over = False
-
-        self.pieza_siguiente = random.choice(list(PIEZAS.keys()))
+        # Piezas y rotaciones
+        self.piezas = {
+            "I": [
+                [(0, 0), (1, 0), (2, 0), (3, 0)],
+                [(0, 0), (0, 1), (0, 2), (0, 3)]
+            ],
+            "O": [
+                [(0, 0), (1, 0), (0, 1), (1, 1)]
+            ],
+            "T": [
+                [(1, 0), (0, 1), (1, 1), (2, 1)],
+                [(0, 0), (0, 1), (1, 1), (0, 2)],
+                [(0, 0), (1, 0), (2, 0), (1, 1)],
+                [(1, 0), (0, 1), (1, 1), (1, 2)]
+            ],
+            "S": [
+                [(1, 0), (2, 0), (0, 1), (1, 1)],
+                [(0, 0), (0, 1), (1, 1), (1, 2)]
+            ],
+            "Z": [
+                [(0, 0), (1, 0), (1, 1), (2, 1)],
+                [(1, 0), (0, 1), (1, 1), (0, 2)]
+            ],
+            "J": [
+                [(0, 0), (0, 1), (1, 1), (2, 1)],
+                [(0, 0), (1, 0), (0, 1), (0, 2)],
+                [(0, 0), (1, 0), (2, 0), (2, 1)],
+                [(1, 0), (1, 1), (0, 2), (1, 2)]
+            ],
+            "L": [
+                [(2, 0), (0, 1), (1, 1), (2, 1)],
+                [(0, 0), (0, 1), (0, 2), (1, 2)],
+                [(0, 0), (1, 0), (2, 0), (0, 1)],
+                [(0, 0), (1, 0), (1, 1), (1, 2)]
+            ]
+        }
 
         self.pieza_actual = None
-        self.rotacion = 0
+
+        # PIEZA SIGUIENTE
+        self.pieza_siguiente = random.choice(
+            list(self.piezas.keys())
+        )
+
         self.x = 2
         self.y = 1
+        self.rotacion = 0
+
+        self.puntuacion = 0
+        self.lineas = 0
+        self.nivel = 1
+        self.juego_terminado = False
 
         self.generar_pieza()
 
-    # -----------------------------------------------------
+    # ======================================
     # GENERAR PIEZA
-    # -----------------------------------------------------
+    # ======================================
 
     def generar_pieza(self):
+
         self.pieza_actual = self.pieza_siguiente
-        self.pieza_siguiente = random.choice(list(PIEZAS.keys()))
+
+        self.pieza_siguiente = random.choice(
+            list(self.piezas.keys())
+        )
 
         self.rotacion = 0
         self.x = 2
         self.y = 1
 
+        # Si la pieza no puede aparecer, Game Over
         if self.colisiona(self.x, self.y, self.rotacion):
-            self.game_over = True
+            self.juego_terminado = True
 
-    # -----------------------------------------------------
-    # COLISIONES
-    # -----------------------------------------------------
+    # ======================================
+    # OBTENER BLOQUES
+    # ======================================
 
-    def colisiona(self, nuevo_x, nuevo_y, nueva_rotacion):
-        celdas = obtener_celdas_pieza(
-            self.pieza_actual,
-            nueva_rotacion,
-            nuevo_x,
-            nuevo_y
-        )
+    def obtener_bloques(self, rotacion=None):
 
-        for x, y in celdas:
+        if rotacion is None:
+            rotacion = self.rotacion
 
-            # Límites del área jugable
-            if x < COL_MIN or x > COL_MAX:
+        formas = self.piezas[self.pieza_actual]
+
+        return formas[rotacion % len(formas)]
+
+    # ======================================
+    # CREAR MATRIZ 4x4 DE UNA PIEZA
+    # ======================================
+
+    def crear_matriz_pieza(self, tipo, rotacion=0):
+
+        matriz = [
+            ['-' for _ in range(4)]
+            for _ in range(4)
+        ]
+
+        formas = self.piezas[tipo]
+
+        bloques = formas[rotacion % len(formas)]
+
+        for dx, dy in bloques:
+            matriz[dy][dx] = tipo
+
+        return matriz
+
+    # ======================================
+    # DETECTAR COLISIONES
+    # ======================================
+
+    def colisiona(self, x, y, rotacion):
+
+        bloques = self.piezas[self.pieza_actual][
+            rotacion % len(self.piezas[self.pieza_actual])
+        ]
+
+        for dx, dy in bloques:
+
+            nx = x + dx
+            ny = y + dy
+
+            # Bordes laterales
+            if nx < 1 or nx >= self.ancho - 1:
                 return True
 
-            if y > FILA_MAX:
+            # Borde inferior y superior
+            if ny < 1 or ny >= self.alto - 1:
                 return True
 
-            # No permitir que la pieza salga por arriba
-            if y < FILA_MIN:
-                return True
-
-            # Colisión con piezas fijadas
-            if self.tablero[y][x] != VACIO:
+            # Colisión con bloques fijados
+            if self.tablero[ny][nx] != '-':
                 return True
 
         return False
 
-    # -----------------------------------------------------
-    # FIJAR PIEZA EN EL TABLERO
-    # -----------------------------------------------------
+    # ======================================
+    # FIJAR PIEZA
+    # ======================================
 
     def fijar_pieza(self):
-        celdas = obtener_celdas_pieza(
-            self.pieza_actual,
-            self.rotacion,
-            self.x,
-            self.y
-        )
 
-        for x, y in celdas:
-            if 0 <= y < FILAS and 0 <= x < COLUMNAS:
-                self.tablero[y][x] = self.pieza_actual
+        # Si algún bloque quedó fuera del espacio,
+        # termina la partida
+        for dx, dy in self.obtener_bloques():
 
+            nx = self.x + dx
+            ny = self.y + dy
+
+            if not (1 <= nx < self.ancho - 1):
+                self.juego_terminado = True
+                return
+
+            if not (1 <= ny < self.alto - 1):
+                self.juego_terminado = True
+                return
+
+        # Guardar pieza en el tablero
+        for dx, dy in self.obtener_bloques():
+
+            nx = self.x + dx
+            ny = self.y + dy
+
+            self.tablero[ny][nx] = self.pieza_actual
+
+        # Eliminar filas completas
         self.eliminar_lineas()
+
+        # Generar nueva pieza
         self.generar_pieza()
 
-    # -----------------------------------------------------
-    # ELIMINAR LÍNEAS COMPLETAS
-    # -----------------------------------------------------
+    # ======================================
+    # ELIMINAR LINEAS COMPLETAS
+    # ======================================
 
     def eliminar_lineas(self):
-        lineas_eliminadas = 0
 
-        filas_nuevas = []
+        filas_completas = []
 
-        for y in range(FILA_MIN, FILA_MAX + 1):
-            fila = self.tablero[y]
+        # Revisar solamente filas interiores
+        for y in range(1, self.alto - 1):
 
             if all(
-                fila[x] != VACIO
-                for x in range(COL_MIN, COL_MAX + 1)
+                self.tablero[y][x] != '-'
+                for x in range(1, self.ancho - 1)
             ):
-                lineas_eliminadas += 1
-            else:
-                filas_nuevas.append(fila)
+                filas_completas.append(y)
 
-        if lineas_eliminadas == 0:
+        cantidad = len(filas_completas)
+
+        if cantidad == 0:
             return
 
-        # Agregar filas vacías arriba
-        for _ in range(lineas_eliminadas):
-            filas_nuevas.insert(
-                0,
-                [VACIO for _ in range(COLUMNAS)]
+        # Eliminar filas completas
+        for y in reversed(filas_completas):
+            del self.tablero[y]
+
+        # Insertar filas vacías debajo del borde superior
+        for _ in range(cantidad):
+
+            self.tablero.insert(
+                1, ['-' for _ in range(self.ancho)]
             )
 
-        # Reconstruir únicamente el área jugable
-        for indice, fila in enumerate(filas_nuevas):
-            self.tablero[FILA_MIN + indice] = fila
+        # Actualizar estadísticas
+        self.lineas += cantidad
 
-        self.lineas += lineas_eliminadas
+        # Subir un nivel por cada línea eliminada
+        self.nivel += cantidad
 
-        # Aumentar nivel por cada línea eliminada
-        self.nivel += lineas_eliminadas
+        # Puntuación
+        puntos = {
+            1: 100,
+            2: 300,
+            3: 500,
+            4: 800
+        }
 
-        # Calcular puntaje
-        puntos = PUNTOS_LINEAS.get(lineas_eliminadas, 0)
-        self.puntaje += puntos * self.nivel
+        self.puntuacion += (
+            puntos.get(cantidad, 0) * self.nivel
+        )
 
-    # -----------------------------------------------------
+    # ======================================
     # MOVIMIENTOS DISPONIBLES
-    # -----------------------------------------------------
+    # ======================================
 
-    def movimientos_disponibles(self):
-        if self.game_over:
-            return []
+    def obtener_movimientos_disponibles(self):
 
         movimientos = []
 
-        if not self.colisiona(self.x - 1, self.y, self.rotacion):
+        if self.juego_terminado:
+            return movimientos
+
+        # Izquierda
+        if not self.colisiona(
+            self.x - 1, self.y, self.rotacion
+        ):
             movimientos.append("IZQUIERDA")
 
-        if not self.colisiona(self.x + 1, self.y, self.rotacion):
+        # Derecha
+        if not self.colisiona(
+            self.x + 1, self.y, self.rotacion
+        ):
             movimientos.append("DERECHA")
 
-        nueva_rotacion = (self.rotacion + 1) % 4
+        # Rotar
+        formas = self.piezas[self.pieza_actual]
 
-        if not self.colisiona(self.x, self.y, nueva_rotacion):
+        nueva_rotacion = (
+            self.rotacion + 1
+        ) % len(formas)
+
+        if not self.colisiona(
+            self.x, self.y, nueva_rotacion
+        ):
             movimientos.append("ROTAR")
 
-        if not self.colisiona(self.x, self.y + 1, self.rotacion):
+        # Bajar
+        if not self.colisiona(
+            self.x, self.y + 1, self.rotacion
+        ):
             movimientos.append("BAJAR")
             movimientos.append("CAIDA")
 
         return movimientos
 
-    # -----------------------------------------------------
+    # ======================================
     # MOVER PIEZA
-    # -----------------------------------------------------
+    # ======================================
 
-    def mover(self, direccion):
-        if self.game_over:
-            return False
+    def mover(self, direccion: str):
 
-        movimientos = self.movimientos_disponibles()
+        direccion = direccion.upper()
 
-        if direccion not in movimientos:
-            return False
+        if self.juego_terminado:
+            return self.obtener_estado_juego()
 
+        movimientos = self.obtener_movimientos_disponibles()
+
+        if direccion not in [
+            "IZQUIERDA", "DERECHA", "ROTAR", "BAJAR", "CAIDA"
+        ]:
+
+            return {
+                "estado_juego": "false",
+                "mensaje": "Movimiento no válido",
+                "movimientos_disponibles": movimientos
+            }
+
+        # Izquierda
         if direccion == "IZQUIERDA":
-            self.x -= 1
 
+            if "IZQUIERDA" in movimientos:
+                self.x -= 1
+
+        # Derecha
         elif direccion == "DERECHA":
-            self.x += 1
 
+            if "DERECHA" in movimientos:
+                self.x += 1
+
+        # Rotación
         elif direccion == "ROTAR":
-            self.rotacion = (self.rotacion + 1) % 4
 
+            if "ROTAR" in movimientos:
+
+                self.rotacion = (
+                    self.rotacion + 1
+                ) % len(self.piezas[self.pieza_actual])
+
+        # Bajar una posición
         elif direccion == "BAJAR":
-            self.y += 1
 
+            if "BAJAR" in movimientos:
+                self.y += 1
+
+            else:
+                self.fijar_pieza()
+
+        # Caída instantánea
         elif direccion == "CAIDA":
+
             while not self.colisiona(
-                self.x,
-                self.y + 1,
-                self.rotacion
+                self.x, self.y + 1, self.rotacion
             ):
                 self.y += 1
 
             self.fijar_pieza()
 
-        return True
+        return self.obtener_estado_juego()
 
-    # -----------------------------------------------------
-    # AVANZAR AUTOMÁTICAMENTE
-    # -----------------------------------------------------
+    # ======================================
+    # CAIDA AUTOMATICA
+    # ======================================
 
     def avanzar(self):
-        if self.game_over:
-            return False
+
+        if self.juego_terminado:
+            return self.obtener_estado_juego()
 
         if not self.colisiona(
-            self.x,
-            self.y + 1,
-            self.rotacion
+            self.x, self.y + 1, self.rotacion
         ):
             self.y += 1
+
         else:
             self.fijar_pieza()
 
-        return True
+        return self.obtener_estado_juego()
 
-    # -----------------------------------------------------
-    # TABLERO VISIBLE CON BORDES
-    # -----------------------------------------------------
+    # ======================================
+    # CREAR TABLERO VISIBLE
+    # ======================================
 
     def crear_tablero(self):
-        tablero_visible = []
 
-        # Borde superior
-        tablero_visible.append("#" * COLUMNAS)
+        tablero = [
+            ['-' for _ in range(self.ancho)]
+            for _ in range(self.alto)
+        ]
 
-        for y in range(FILA_MIN, FILA_MAX + 1):
-            fila = self.tablero[y].copy()
+        # Bordes laterales
+        for y in range(self.alto):
 
-            # Dibujar pieza actual sobre el tablero
-            if not self.game_over:
-                celdas = obtener_celdas_pieza(
-                    self.pieza_actual,
-                    self.rotacion,
-                    self.x,
-                    self.y
-                )
+            tablero[y][0] = '|'
+            tablero[y][self.ancho - 1] = '|'
 
-                for x_pieza, y_pieza in celdas:
-                    if y_pieza == y and COL_MIN <= x_pieza <= COL_MAX:
-                        fila[x_pieza] = self.pieza_actual
+        # Bordes superior e inferior
+        for x in range(self.ancho):
 
-            # Bordes laterales
-            fila[0] = "|"
-            fila[COLUMNAS - 1] = "|"
+            tablero[0][x] = '#'
+            tablero[self.alto - 1][x] = '#'
 
-            tablero_visible.append("".join(fila))
+        # Dibujar piezas fijas
+        for y in range(1, self.alto - 1):
 
-        # Borde inferior
-        tablero_visible.append("#" * COLUMNAS)
+            for x in range(1, self.ancho - 1):
 
-        return tablero_visible
+                if self.tablero[y][x] != '-':
+                    tablero[y][x] = self.tablero[y][x]
 
-    # -----------------------------------------------------
-    # ESTADO COMPLETO DEL JUEGO
-    # -----------------------------------------------------
+        # Dibujar pieza actual
+        if not self.juego_terminado:
 
-    def obtener_estado(self):
-        matriz_actual = crear_matriz_pieza(
-            self.pieza_actual,
-            self.rotacion
-        )
+            for dx, dy in self.obtener_bloques():
 
-        matriz_siguiente = crear_matriz_pieza(
-            self.pieza_siguiente,
-            0
-        )
+                nx = self.x + dx
+                ny = self.y + dy
+
+                if (
+                    1 <= nx < self.ancho - 1
+                    and 1 <= ny < self.alto - 1
+                ):
+                    tablero[ny][nx] = self.pieza_actual
+
+        return tablero
+
+    # ======================================
+    # ESTADO DEL JUEGO
+    # ======================================
+
+    def obtener_estado_juego(self):
+
+        tablero = self.crear_tablero()
 
         return {
-            "tablero": self.crear_tablero(),
+            "id_juego": self.id_juego,
 
-            "pieza_en_uso": [
-                "".join(fila)
-                for fila in matriz_actual
-            ],
+            "estado_juego": str(
+                self.juego_terminado
+            ).lower(),
 
-            "pieza_actual_tipo": self.pieza_actual,
+            "puntuacion": self.puntuacion,
+            "lineas": self.lineas,
+            "nivel": self.nivel,
 
-            "pieza_siguiente": [
-                "".join(fila)
-                for fila in matriz_siguiente
-            ],
+            "pieza_actual": self.pieza_actual,
 
-            "pieza_siguiente_tipo": self.pieza_siguiente,
-
-            "posicion": {
-                "x": self.x,
-                "y": self.y,
-                "rotacion": self.rotacion
-            },
-
-            "movimientos_disponibles": (
-                self.movimientos_disponibles()
+            # MATRIZ 4x4 DE LA PIEZA ACTUAL
+            "pieza_actual_4x4": self.crear_matriz_pieza(
+                self.pieza_actual, self.rotacion
             ),
 
-            "puntaje": self.puntaje,
-            "nivel": self.nivel,
-            "lineas": self.lineas,
-            "game_over": self.game_over
+            # MATRIZ 4x4 DE LA SIGUIENTE PIEZA
+            "siguiente_pieza_4x4": self.crear_matriz_pieza(
+                self.pieza_siguiente, 0
+            ),
+
+            "pieza_siguiente": self.pieza_siguiente,
+
+            "movimientos_disponibles":
+                self.obtener_movimientos_disponibles(),
+
+            "juego": '\n'.join(
+                ''.join(fila) for fila in tablero
+            )
         }
 
 
-# =========================================================
-# ALMACENAMIENTO DE PARTIDAS
-# =========================================================
+# ==========================================
+# API FASTAPI
+# ==========================================
+
+
+
+router = APIRouter(
+    prefix="/tetris",
+    tags=["Tetris"]
+)
 
 juegos = {}
+contador_juegos = 1
 
 
-# =========================================================
-# ENDPOINTS FASTAPI
-# =========================================================
+# ======================================
+# INICIAR JUEGO
+# ======================================
 
 @router.get("/iniciar_juego/")
-def iniciar_juego():
-    id_juego = str(uuid.uuid4())
+async def iniciar_juego():
 
-    juego = JuegoTetris()
-    juegos[id_juego] = juego
+    global contador_juegos
+
+    id_juego = contador_juegos
+
+    juegos[id_juego] = JuegoTetris(id_juego)
+
+    contador_juegos += 1
 
     return {
         "id_juego": id_juego,
-        **juego.obtener_estado()
+        "estado": juegos[id_juego].obtener_estado_juego()
     }
 
 
-@router.get("/estado/{id_juego}/")
-def obtener_estado(id_juego: str):
-    juego = juegos.get(id_juego)
-
-    if juego is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Juego no encontrado"
-        )
-
-    return juego.obtener_estado()
-
+# ======================================
+# MOVER PIEZA
+# ======================================
 
 @router.get("/mover/{id_juego}/")
-def mover_pieza(
-    id_juego: str,
-    direccion: str = Query(...)
-):
-    juego = juegos.get(id_juego)
+async def mover(id_juego: int, direccion: str):
 
-    if juego is None:
+    if id_juego not in juegos:
+
         raise HTTPException(
             status_code=404,
             detail="Juego no encontrado"
         )
 
-    direccion = direccion.upper()
+    return juegos[id_juego].mover(direccion)
 
-    direcciones_validas = {
-        "IZQUIERDA",
-        "DERECHA",
-        "ROTAR",
-        "BAJAR",
-        "CAIDA"
-    }
 
-    if direccion not in direcciones_validas:
-        raise HTTPException(
-            status_code=400,
-            detail="Dirección inválida"
-        )
-
-    juego.mover(direccion)
-
-    return juego.obtener_estado()
-
+# ======================================
+# CAIDA AUTOMATICA
+# ======================================
 
 @router.get("/avanzar/{id_juego}/")
-def avanzar_juego(id_juego: str):
-    juego = juegos.get(id_juego)
+async def avanzar(id_juego: int):
 
-    if juego is None:
+    if id_juego not in juegos:
+
         raise HTTPException(
             status_code=404,
             detail="Juego no encontrado"
         )
 
-    juego.avanzar()
-
-    return juego.obtener_estado()
+    return juegos[id_juego].avanzar()
 
 
-@router.delete("/eliminar/{id_juego}/")
-def eliminar_juego(id_juego: str):
-    juego = juegos.pop(id_juego, None)
+# ======================================
+# CONSULTAR ESTADO
+# ======================================
 
-    if juego is None:
+@router.get("/estado/{id_juego}/")
+async def obtener_estado(id_juego: int):
+
+    if id_juego not in juegos:
+
         raise HTTPException(
             status_code=404,
             detail="Juego no encontrado"
         )
 
-    return {
-        "mensaje": "Juego eliminado",
-        "id_juego": id_juego
-    }
+    return juegos[id_juego].obtener_estado_juego()
 
 
