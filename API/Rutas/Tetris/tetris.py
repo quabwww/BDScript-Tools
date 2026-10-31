@@ -170,20 +170,32 @@ class JuegoTetris:
 
         direccion = direccion.upper()
 
-        if direccion == 'IZQUIERDA':
-            if not self.colisiona(
-                self.x - 1, self.y, self.rotacion
-            ):
-                self.x -= 1
+        # Validar movimiento
+        if direccion not in self.MOVIMIENTOS:
+            return {
+                "estado_juego": "false",
+                "mensaje": "Movimiento no válido",
+                "movimientos_disponibles": self.MOVIMIENTOS
+            }
 
-        elif direccion == 'DERECHA':
+    # Mover izquierda
+    if direccion == "IZQUIERDA":
+        if not self.colisiona(
+            self.x - 1, self.y, self.rotacion
+        ):
+            self.x -= 1
+
+        # Mover derecha
+        elif direccion == "DERECHA":
             if not self.colisiona(
                 self.x + 1, self.y, self.rotacion
             ):
                 self.x += 1
 
-        elif direccion == 'ROTAR':
+        # Rotar pieza
+        elif direccion == "ROTAR":
             formas = self.piezas[self.pieza_actual]
+
             nueva_rotacion = (
                 self.rotacion + 1
             ) % len(formas)
@@ -193,27 +205,23 @@ class JuegoTetris:
             ):
                 self.rotacion = nueva_rotacion
 
-        elif direccion == 'BAJAR':
-            if not self.colisiona(
-                self.x, self.y + 1, self.rotacion
-            ):
-                self.y += 1
-            else:
-                self.fijar_pieza()
+    # Bajar una posición
+    elif direccion == "BAJAR":
+        if not self.colisiona(
+            self.x, self.y + 1, self.rotacion
+        ):
+            self.y += 1
+        else:
+            self.fijar_pieza()
 
-        elif direccion == 'CAIDA':
+        # Caída instantánea
+        elif direccion == "CAIDA":
             while not self.colisiona(
                 self.x, self.y + 1, self.rotacion
             ):
                 self.y += 1
 
             self.fijar_pieza()
-
-        else:
-            return {
-                "estado_juego": "false",
-                "mensaje": "Movimiento no válido"
-            }
 
         return self.obtener_estado_juego()
 
