@@ -652,22 +652,3 @@ def eliminar_juego(id_juego: str):
     }
 
 
-# =========================================================
-# APLICACIÓN PRINCIPAL
-# =========================================================
-
-app = FastAPI(
-    title="API Tetris",
-    description="Juego Tetris mediante FastAPI",
-    version="1.0.0"
-)
-
-app.include_router(router)
-
-
-@app.get("/")
-def inicio():
-    return {
-        "mensaje": "API Tetris funcionando",
-        "documentacion": "/docs"
-    }
