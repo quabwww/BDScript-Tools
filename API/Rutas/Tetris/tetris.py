@@ -8,7 +8,7 @@ import random
 # ==========================================
 
 class JuegoTetris:
-    def __init__(self, id_juego: int, ancho: int = 10, alto: int = 20):
+    def __init__(self, id_juego: int, ancho: int = 8, alto: int = 20):
         self.id_juego = id_juego
         self.ancho = ancho
         self.alto = alto
