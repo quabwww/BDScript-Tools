@@ -9,73 +9,66 @@ import requests
 import uuid
 import threading
 import re
-import os
 
 router = APIRouter()
 
-# Configuración
 BASE_URL = "https://bdscript-tools.onrender.com"
 TEMP_DIR = Path("temp")
-TEMP_DIR.mkdir(parents=True, exist_ok=True)
+TEMP_DIR.mkdir(exist_ok=True)
 
-# Tiempo de vida: 5 minutos
-IMAGE_EXPIRATION = 300
-
-
-# Eliminar imagen automáticamente
-def delete_image(filepath):
-    def remove():
-        try:
-            if filepath.exists():
-                filepath.unlink()
-        except Exception:
-            pass
-
-    timer = threading.Timer(IMAGE_EXPIRATION, remove)
-    timer.daemon = True
-    timer.start()
+EXPIRATION = 300
+timers = {}
 
 
-# Limpiar archivos antiguos al iniciar
-def clean_temp():
-    for file in TEMP_DIR.glob("*.png"):
-        try:
-            if file.is_file():
-                file.unlink()
-        except Exception:
-            pass
+def delete_image(filename):
+    filepath = TEMP_DIR / filename
+
+    try:
+        filepath.unlink(missing_ok=True)
+        timers.pop(filename, None)
+    except Exception:
+        pass
 
 
-clean_temp()
-
-
-# Generar imagen
 @router.get("/api/level_up/")
 def level(
-    avatar: str,
+    avatar: str = None,
     level: int = 1,
-    circle_color: str = "#FFFFFF"
+    circle_color: str = "#FFFFFF",
+    image: str = None
 ):
 
-    # Validar nivel
-    if level < 1:
-        level = 1
+    # Mostrar imagen utilizando el mismo endpoint
+    if image:
+        if not re.fullmatch(r"[a-f0-9]{32}\.png", image):
+            raise HTTPException(400, "Nombre inválido")
 
-    # Validar color hexadecimal
-    if not re.fullmatch(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})", circle_color):
-        circle_color = "#FFFFFF"
+        filepath = TEMP_DIR / image
 
-    # Validar URL
+        if not filepath.is_file():
+            raise HTTPException(404, "Imagen no encontrada o expirada")
+
+        return FileResponse(
+            filepath,
+            media_type="image/png"
+        )
+
+    # Generar imagen
+    if not avatar:
+        raise HTTPException(400, "Debes proporcionar un avatar")
+
     parsed = urlparse(avatar)
 
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        raise HTTPException(
-            status_code=400,
-            detail="URL del avatar inválida."
-        )
+        raise HTTPException(400, "URL de avatar inválida")
+
+    if level < 1:
+        level = 1
+
+    if not re.fullmatch(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})", circle_color):
+        circle_color = "#FFFFFF"
 
     try:
-        # Descargar avatar
         response = requests.get(
             avatar,
             timeout=15,
@@ -84,28 +77,20 @@ def level(
         response.raise_for_status()
 
         if not response.headers.get("Content-Type", "").startswith("image/"):
-            raise HTTPException(
-                status_code=400,
-                detail="La URL no contiene una imagen válida."
-            )
+            raise HTTPException(400, "El avatar no es una imagen")
 
-        # Crear canvas
         canvas = Canvas((700, 130), color=(0, 0, 0, 0))
         editor = Editor(canvas.image)
 
-        # Procesar avatar
         profile = (
             Editor(BytesIO(response.content))
             .resize((101, 101))
             .circle_image()
         )
 
-        # Fuente
         poppins = Font.poppins(size=30)
-
         desplazamiento_x = 17
 
-        # Fondo
         editor.rectangle(
             (110, 16),
             width=230,
@@ -114,7 +99,6 @@ def level(
             radius=15
         )
 
-        # Borde circular personalizable
         editor.ellipse(
             (30 + desplazamiento_x, 11),
             width=110,
@@ -123,7 +107,6 @@ def level(
             stroke_width=8
         )
 
-        # Texto
         editor.text(
             (180, 57),
             f"level {level}",
@@ -131,44 +114,34 @@ def level(
             color="white"
         )
 
-        # Avatar
         editor.paste(
             profile.image,
             (35 + desplazamiento_x, 16)
         )
 
-        # Guardar imagen
         filename = f"{uuid.uuid4().hex}.png"
         filepath = TEMP_DIR / filename
 
         editor.image.save(filepath, format="PNG")
 
-        # Programar eliminación
-        delete_image(filepath)
-
-        # URL pública
-        image_url = f"{BASE_URL}/api/level_up/image/{filename}"
+        # Eliminar después de 5 minutos
+        timer = threading.Timer(EXPIRATION, delete_image, args=[filename])
+        timer.daemon = True
+        timer.start()
+        timers[filename] = timer
 
         return {
             "success": True,
-            "url": image_url,
+            "url": f"{BASE_URL}/api/level_up/?image={filename}",
             "filename": filename,
-            "expires_in": IMAGE_EXPIRATION
+            "expires_in": EXPIRATION
         }
 
     except HTTPException:
         raise
 
     except requests.RequestException:
-        raise HTTPException(
-            status_code=400,
-            detail="No se pudo descargar el avatar."
-        )
+        raise HTTPException(400, "Error descargando el avatar")
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=str(e)
-        )
-
-
+        raise HTTPException(500, str(e))
