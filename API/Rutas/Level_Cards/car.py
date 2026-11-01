@@ -2,6 +2,7 @@
 from easy_pil import Editor, Canvas, Font
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
+from PIL import ImageColor
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlparse
@@ -38,7 +39,7 @@ def level(
     image: str = None
 ):
 
-    # Mostrar imagen utilizando el mismo endpoint
+    # Visualizar imagen
     if image:
         if not re.fullmatch(r"[a-f0-9]{32}\.png", image):
             raise HTTPException(400, "Nombre inválido")
@@ -53,7 +54,7 @@ def level(
             media_type="image/png"
         )
 
-    # Generar imagen
+    # Validar avatar
     if not avatar:
         raise HTTPException(400, "Debes proporcionar un avatar")
 
@@ -62,13 +63,19 @@ def level(
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         raise HTTPException(400, "URL de avatar inválida")
 
+    # Validar nivel
     if level < 1:
         level = 1
 
+    # Validar color hexadecimal
     if not re.fullmatch(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})", circle_color):
         circle_color = "#FFFFFF"
 
+    # Convertir hexadecimal a RGB
+    circle_rgb = ImageColor.getrgb(circle_color)
+
     try:
+        # Descargar avatar
         response = requests.get(
             avatar,
             timeout=15,
@@ -79,9 +86,11 @@ def level(
         if not response.headers.get("Content-Type", "").startswith("image/"):
             raise HTTPException(400, "El avatar no es una imagen")
 
+        # Crear canvas
         canvas = Canvas((700, 130), color=(0, 0, 0, 0))
         editor = Editor(canvas.image)
 
+        # Procesar avatar
         profile = (
             Editor(BytesIO(response.content))
             .resize((101, 101))
@@ -91,6 +100,7 @@ def level(
         poppins = Font.poppins(size=30)
         desplazamiento_x = 17
 
+        # Fondo
         editor.rectangle(
             (110, 16),
             width=230,
@@ -99,14 +109,16 @@ def level(
             radius=15
         )
 
+        # Círculo con color personalizado
         editor.ellipse(
             (30 + desplazamiento_x, 11),
             width=110,
             height=110,
-            outline=circle_color,
+            outline=circle_rgb,
             stroke_width=8
         )
 
+        # Texto
         editor.text(
             (180, 57),
             f"level {level}",
@@ -114,26 +126,35 @@ def level(
             color="white"
         )
 
+        # Avatar
         editor.paste(
             profile.image,
             (35 + desplazamiento_x, 16)
         )
 
+        # Guardar imagen
         filename = f"{uuid.uuid4().hex}.png"
         filepath = TEMP_DIR / filename
 
         editor.image.save(filepath, format="PNG")
 
         # Eliminar después de 5 minutos
-        timer = threading.Timer(EXPIRATION, delete_image, args=[filename])
+        timer = threading.Timer(
+            EXPIRATION,
+            delete_image,
+            args=[filename]
+        )
         timer.daemon = True
         timer.start()
+
         timers[filename] = timer
 
+        # URL pública
         return {
             "success": True,
             "url": f"{BASE_URL}/api/level_up/?image={filename}",
             "filename": filename,
+            "circle_color": circle_color,
             "expires_in": EXPIRATION
         }
 
