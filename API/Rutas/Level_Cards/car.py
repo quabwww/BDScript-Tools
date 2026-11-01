@@ -105,7 +105,7 @@ def level(
         # Devolver URL
         return {
             "success": True,
-            "url": f"/api/level_up/image/{filename}",
+            "url": f"https://bdscript-tools.onrender.com/api/level_up/image/{filename}",
             "expires_in": 300
         }
 
