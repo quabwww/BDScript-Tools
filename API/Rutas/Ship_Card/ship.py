@@ -15,9 +15,8 @@ router = APIRouter()
 
 BASE_URL = "https://bdscript-tools.onrender.com"
 
-# Carpeta exclusiva de Ship Card
-TEMP_DIR = Path("temp/ship_card")
-TEMP_DIR.mkdir(parents=True, exist_ok=True)
+TEMP_DIR = Path("temp")
+TEMP_DIR.mkdir(exist_ok=True)
 
 EXPIRATION = 300
 timers = {}
@@ -34,7 +33,7 @@ def delete_image(filename):
         pass
 
 
-# Descargar imagen
+# Descargar imagen desde URL
 def download_image(url):
     parsed = urlparse(url)
 
@@ -104,29 +103,30 @@ def image(
                 "API/Rutas/Ship_Card/fondo.png"
             ).resize((900, 300))
 
-        # Primer avatar
+        # Descargar avatares
         profile = (
             Editor(download_image(avatar1))
             .resize((200, 200))
             .circle_image()
         )
 
-        # Segundo avatar
         profile_2 = (
             Editor(download_image(avatar2))
             .resize((200, 200))
             .circle_image()
         )
 
-        # Corazón
+        # Elementos de la tarjeta
         corazon = Editor(
             "API/Rutas/Ship_Card/corz.png"
         ).resize((240, 240))
 
         poppins = Font.poppins(size=80)
 
+        # Corazón
         gen.paste(corazon, (330, 36))
 
+        # Porcentaje
         gen.text(
             (380, 110),
             f"{love}%",
@@ -134,7 +134,7 @@ def image(
             color="white"
         )
 
-        # Primer círculo
+        # Primer avatar
         gen.paste(profile, (100, 50))
 
         gen.ellipse(
@@ -145,7 +145,7 @@ def image(
             stroke_width=4
         )
 
-        # Segundo círculo
+        # Segundo avatar
         gen.paste(profile_2, (600, 50))
 
         gen.ellipse(
@@ -156,7 +156,7 @@ def image(
             stroke_width=4
         )
 
-        # Guardar imagen en carpeta exclusiva
+        # Guardar imagen
         filename = f"{uuid.uuid4().hex}.png"
         filepath = TEMP_DIR / filename
 
