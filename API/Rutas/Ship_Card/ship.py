@@ -15,7 +15,7 @@ router = APIRouter()
 
 BASE_URL = "https://bdscript-tools.onrender.com"
 
-# Carpeta exclusiva de Ship Card
+# Carpeta exclusiva
 TEMP_DIR = Path("temp/ship_card")
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -34,24 +34,55 @@ def delete_image(filename):
         pass
 
 
-# Descargar imagen
-def download_image(url):
-    parsed = urlparse(url)
+# Descargar imagen con errores específicos
+def download_image(url, name="imagen"):
+    try:
+        parsed = urlparse(url)
 
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        raise HTTPException(400, "URL de imagen inválida")
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise HTTPException(
+                400,
+                f"{name}: URL inválida"
+            )
 
-    response = requests.get(
-        url,
-        timeout=15,
-        headers={"User-Agent": "Mozilla/5.0"}
-    )
-    response.raise_for_status()
+        response = requests.get(
+            url,
+            timeout=20,
+            headers={
+                "User-Agent": "Mozilla/5.0"
+            }
+        )
 
-    if not response.headers.get("Content-Type", "").startswith("image/"):
-        raise HTTPException(400, "El enlace no contiene una imagen")
+        if response.status_code != 200:
+            raise HTTPException(
+                400,
+                f"{name}: Error HTTP {response.status_code}"
+            )
 
-    return BytesIO(response.content)
+        content_type = response.headers.get("Content-Type", "")
+
+        if not content_type.startswith("image/"):
+            raise HTTPException(
+                400,
+                f"{name}: El enlace no devuelve una imagen. Content-Type: {content_type}"
+            )
+
+        return BytesIO(response.content)
+
+    except HTTPException:
+        raise
+
+    except requests.Timeout:
+        raise HTTPException(
+            400,
+            f"{name}: Tiempo de espera agotado"
+        )
+
+    except requests.RequestException as e:
+        raise HTTPException(
+            400,
+            f"{name}: Error de descarga: {str(e)}"
+        )
 
 
 @router.get("/api/ship-card/")
@@ -65,15 +96,18 @@ def image(
     image: str = None
 ):
 
-    # Mostrar imagen guardada
+    # Visualizar imagen guardada
     if image:
         if not re.fullmatch(r"[a-f0-9]{32}\.png", image):
-            raise HTTPException(400, "Nombre inválido")
+            raise HTTPException(400, "Nombre de imagen inválido")
 
         filepath = TEMP_DIR / image
 
         if not filepath.is_file():
-            raise HTTPException(404, "Imagen no encontrada o expirada")
+            raise HTTPException(
+                404,
+                "Imagen no encontrada o expirada"
+            )
 
         return FileResponse(
             filepath,
@@ -82,7 +116,10 @@ def image(
 
     # Validar avatares
     if not avatar1 or not avatar2:
-        raise HTTPException(400, "Debes proporcionar ambos avatares")
+        raise HTTPException(
+            400,
+            "Debes proporcionar avatar1 y avatar2"
+        )
 
     # Validar colores
     if not re.fullmatch(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})", circle_color1):
@@ -95,10 +132,15 @@ def image(
     color2 = ImageColor.getrgb(circle_color2)
 
     try:
-        # Fondo predeterminado o personalizado
+        # Fondo personalizado o predeterminado
         if background_url:
-            background = download_image(background_url)
+            background = download_image(
+                background_url,
+                "Fondo"
+            )
+
             gen = Editor(background).resize((900, 300))
+
         else:
             gen = Editor(
                 "API/Rutas/Ship_Card/fondo.png"
@@ -106,14 +148,14 @@ def image(
 
         # Primer avatar
         profile = (
-            Editor(download_image(avatar1))
+            Editor(download_image(avatar1, "Avatar 1"))
             .resize((200, 200))
             .circle_image()
         )
 
         # Segundo avatar
         profile_2 = (
-            Editor(download_image(avatar2))
+            Editor(download_image(avatar2, "Avatar 2"))
             .resize((200, 200))
             .circle_image()
         )
@@ -125,8 +167,10 @@ def image(
 
         poppins = Font.poppins(size=80)
 
+        # Pegar corazón
         gen.paste(corazon, (330, 36))
 
+        # Porcentaje
         gen.text(
             (380, 110),
             f"{love}%",
@@ -134,7 +178,7 @@ def image(
             color="white"
         )
 
-        # Primer círculo
+        # Primer avatar y círculo
         gen.paste(profile, (100, 50))
 
         gen.ellipse(
@@ -145,7 +189,7 @@ def image(
             stroke_width=4
         )
 
-        # Segundo círculo
+        # Segundo avatar y círculo
         gen.paste(profile_2, (600, 50))
 
         gen.ellipse(
@@ -156,7 +200,7 @@ def image(
             stroke_width=4
         )
 
-        # Guardar imagen en carpeta exclusiva
+        # Guardar imagen
         filename = f"{uuid.uuid4().hex}.png"
         filepath = TEMP_DIR / filename
 
@@ -188,11 +232,8 @@ def image(
     except HTTPException:
         raise
 
-    except requests.RequestException:
-        raise HTTPException(
-            400,
-            "Error descargando alguna de las imágenes"
-        )
-
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise HTTPException(
+            500,
+            f"Error generando Ship Card: {str(e)}"
+        )
