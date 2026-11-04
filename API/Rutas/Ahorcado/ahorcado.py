@@ -9,57 +9,14 @@ router = APIRouter(prefix="/ahorcado", tags=["Ahorcado"])
 # Almacenamiento de partidas
 games = {}
 
-# Dibujo del ahorcado
 DIBUJOS = [
-    """
-     +---+
-         |
-         |
-         |
-        ===
-    """,
-    """
-     +---+
-     O   |
-         |
-         |
-        ===
-    """,
-    """
-     +---+
-     O   |
-     |   |
-         |
-        ===
-    """,
-    """
-     +---+
-     O   |
-    /|   |
-         |
-        ===
-    """,
-    """
-     +---+
-     O   |
-    /|\\  |
-         |
-        ===
-    """,
-    """
-     +---+
-     O   |
-    /|\\  |
-    /    |
-        ===
-    """,
-    """
-     +---+
-     O   |
-    /|\\  |
-    / \\  |
-        ===
-    """
+    "+---+xxxx|\nxxxx|\nxxxx|\nxxxx|\nxxx===",
+    "+---+xxxx|\n O  |\nxxxx|\nxxxx|\nxxx===",
+    "+---+xxxx|\n O  |\n |  |\nxxxx|\nxxx===",
+    "+---+xxxx|\n O  |\n/|  |\nxxxx|\nxxx===",
+    "+---+xxxx|\n O  |\n/|\\ |\nxxxx|\nxxx===",
+    "+---+xxxx|\n O  |\n/|\\ |\n/   |\nxxx===",
+    "+---+xxxx|\n O  |\n/|\\ |\n/ \\ |\nxxx==="
 ]
 
 
