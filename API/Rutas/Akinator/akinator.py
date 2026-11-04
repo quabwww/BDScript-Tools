@@ -1,7 +1,7 @@
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from akinator import AsyncClient
+from akinator import Akinator
 from typing import Optional
 from uuid import uuid4
 import asyncio
