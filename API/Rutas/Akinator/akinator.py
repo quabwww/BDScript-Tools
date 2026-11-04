@@ -78,7 +78,7 @@ async def start_game(
             detail="Tema inválido: c, a u o."
         )
 
-    aki = AsyncClient()
+    aki = Akinator()
 
     try:
         await aki.start_game(
