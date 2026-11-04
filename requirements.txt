@@ -8,3 +8,4 @@ httpx
 pillow
 pet-pet-gif
 youtube_search
+akinator
