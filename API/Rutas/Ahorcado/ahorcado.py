@@ -83,8 +83,8 @@ class AhorcadoGame:
 
     def obtener_estado(self):
 
-        progreso = " ".join(
-            letra if letra in self.letras else "_"
+        progreso = "".join(
+            letra if letra in self.letras else "x"
             for letra in self.palabra
         )
 
