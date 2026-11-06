@@ -10,13 +10,59 @@ router = APIRouter(prefix="/ahorcado", tags=["Ahorcado"])
 games = {}
 
 DIBUJOS = [
-    "+---+xxxx|\nxxxx|\nxxxx|\nxxxx|\nxxx===",
-    "+---+xxxx|\n O  |\nxxxx|\nxxxx|\nxxx===",
-    "+---+xxxx|\n O  |\n |  |\nxxxx|\nxxx===",
-    "+---+xxxx|\n O  |\n/|  |\nxxxx|\nxxx===",
-    "+---+xxxx|\n O  |\n/|\\ |\nxxxx|\nxxx===",
-    "+---+xxxx|\n O  |\n/|\\ |\n/   |\nxxx===",
-    "+---+xxxx|\n O  |\n/|\\ |\n/ \\ |\nxxx==="
+    # 0 errores
+    "🪵🪵🪵🪵\n"
+    "🪵      │\n"
+    "🪵      │\n"
+    "🪵      │\n"
+    "🪵🪵🪵🪵",
+
+    # 1 error
+    "🪵🪵🪵🪵\n"
+    "🪵      │\n"
+    "🪵      😵\n"
+    "🪵      │\n"
+    "🪵🪵🪵🪵",
+
+    # 2 errores
+    "🪵🪵🪵🪵\n"
+    "🪵      │\n"
+    "🪵      😵\n"
+    "🪵      👕\n"
+    "🪵🪵🪵🪵",
+
+    # 3 errores
+    "🪵🪵🪵🪵\n"
+    "🪵      │\n"
+    "🪵      😵\n"
+    "🪵     👕\n"
+    "🪵🪵🪵🪵",
+
+    # 4 errores
+    "🪵🪵🪵🪵\n"
+    "🪵      │\n"
+    "🪵      😵\n"
+    "🪵     👕\n"
+    "🪵     👖\n"
+    "🪵🪵🪵🪵",
+
+    # 5 errores
+    "🪵🪵🪵🪵\n"
+    "🪵      │\n"
+    "🪵      😵\n"
+    "🪵     👕\n"
+    "🪵     👖\n"
+    "🪵      🦵\n"
+    "🪵🪵🪵🪵",
+
+    # 6 errores
+    "🪵🪵🪵🪵\n"
+    "🪵      │\n"
+    "🪵      💀\n"
+    "🪵     👕\n"
+    "🪵     👖\n"
+    "🪵     🦵🦵\n"
+    "🪵🪵🪵🪵"
 ]
 
 
