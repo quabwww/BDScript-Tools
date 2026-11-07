@@ -84,15 +84,22 @@ class AhorcadoGame:
     def __init__(self, intentos_extras=0):
 
         self.palabra = random.choice(PALABRAS)
+
         self.letras = []
 
         self.intentos = 6
+
         self.intentos_extras = intentos_extras
-        self.extras_utilizados = 0
+
+        # Guardar cantidad inicial para reiniciar
+        self.intentos_extras_iniciales = intentos_extras
 
         self.estado = "jugando"
 
+    # ======================================
     # ADIVINAR LETRA
+    # ======================================
+
     def adivinar(self, letra):
 
         letra = letra.strip().upper()
@@ -110,36 +117,38 @@ class AhorcadoGame:
 
         mensaje_extra = None
 
+        # Si la letra es incorrecta
         if letra not in self.palabra:
 
+            # Primero utilizar los intentos normales
             if self.intentos > 0:
 
                 self.intentos -= 1
 
-            else:
+            # Después utilizar los intentos extras
+            elif self.intentos_extras > 0:
 
-                self.extras_utilizados += 1
+                self.intentos_extras -= 1
 
-                restantes = (
-                    self.intentos_extras - self.extras_utilizados
-                )
+                if self.intentos_extras > 0:
 
-                if restantes > 0:
                     mensaje_extra = (
-                        f"¡Un intento extra más! Te quedan {restantes}."
+                        f"¡Un intento extra más! "
+                        f"Te quedan {self.intentos_extras}."
                     )
+
                 else:
+
                     mensaje_extra = "Ya no tienes intentos extras."
 
         # Comprobar victoria
         if all(c in self.letras for c in self.palabra):
+
             self.estado = "ganado"
 
         # Comprobar derrota
-        elif (
-            self.intentos == 0
-            and self.extras_utilizados >= self.intentos_extras
-        ):
+        elif self.intentos == 0 and self.intentos_extras == 0:
+
             self.estado = "perdido"
 
         resultado = self.obtener_estado()
@@ -149,7 +158,10 @@ class AhorcadoGame:
 
         return resultado
 
+    # ======================================
     # OBTENER ESTADO
+    # ======================================
+
     def obtener_estado(self):
 
         progreso = "".join(
@@ -157,27 +169,33 @@ class AhorcadoGame:
             for letra in self.palabra
         )
 
-        errores = 6 - self.intentos + self.extras_utilizados
+        errores = 6 - self.intentos
 
         resultado = {
+
             "palabra_oculta": progreso,
+
             "letras_utilizadas": self.letras,
+
             "intentos_restantes": self.intentos,
+
             "intentos_extras": self.intentos_extras,
-            "extras_utilizados": self.extras_utilizados,
-            "extras_disponibles": (
-                self.intentos_extras - self.extras_utilizados
-            ),
+
             "estado": self.estado,
+
             "ahorcado": DIBUJOS[min(errores, 6)]
         }
 
         if self.estado == "ganado":
+
             resultado["mensaje"] = "¡Felicidades! Has ganado."
+
             resultado["palabra"] = self.palabra
 
         elif self.estado == "perdido":
+
             resultado["mensaje"] = "¡Has perdido! Ya no tienes intentos."
+
             resultado["palabra"] = self.palabra
 
         return resultado
@@ -191,6 +209,7 @@ class AhorcadoGame:
 async def iniciar_juego(request: StartRequest):
 
     if request.intentos_extras < 0:
+
         error_api(
             400,
             504,
@@ -219,7 +238,12 @@ async def adivinar_letra(game_id: str, request: GuessRequest):
     game = games.get(game_id)
 
     if game is None:
-        error_api(404, 505, "Partida no encontrada.")
+
+        error_api(
+            404,
+            505,
+            "Partida no encontrada."
+        )
 
     return game.adivinar(request.letra)
 
@@ -234,7 +258,12 @@ async def consultar_juego(game_id: str):
     game = games.get(game_id)
 
     if game is None:
-        error_api(404, 506, "Partida no encontrada.")
+
+        error_api(
+            404,
+            506,
+            "Partida no encontrada."
+        )
 
     return {
         "id_juego": game_id,
@@ -252,9 +281,15 @@ async def reiniciar_juego(game_id: str):
     game = games.get(game_id)
 
     if game is None:
-        error_api(404, 507, "No se puede reiniciar: partida no encontrada.")
 
-    intentos_extras = game.intentos_extras
+        error_api(
+            404,
+            507,
+            "No se puede reiniciar: partida no encontrada."
+        )
+
+    # Recuperar los intentos extras iniciales
+    intentos_extras = game.intentos_extras_iniciales
 
     games[game_id] = AhorcadoGame(
         intentos_extras=intentos_extras
@@ -274,7 +309,12 @@ async def reiniciar_juego(game_id: str):
 async def eliminar_juego(game_id: str):
 
     if game_id not in games:
-        error_api(404, 509, "No se puede eliminar: partida no encontrada.")
+
+        error_api(
+            404,
+            509,
+            "No se puede eliminar: partida no encontrada."
+        )
 
     del games[game_id]
 
